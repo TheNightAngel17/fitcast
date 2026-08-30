@@ -1,0 +1,28 @@
+node_modules/
+dist/
+out/
+.vite/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+
+# Electron build output
+release/
+build/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Rendered output
+output/
