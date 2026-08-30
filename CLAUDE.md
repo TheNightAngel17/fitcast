@@ -11,10 +11,13 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 - **Gap handling**: Forward-fill short gaps (≤5s), leave longer gaps. Everything keyed off `elapsedSeconds` from ride start.
 - **Verified**: FIT epoch conversion produces sane dates (test asserts year 2000-2030). Tested against the real fixture file in `example-data/`.
 
-### ANT+ Library: Simulated-only for now
-- **Why**: `incyclist-ant-plus` is the recommended library (modern TS fork, actively maintained for indoor cycling), but cannot be installed/tested without hardware. The current implementation is a **simulated mode** that logs exact payloads at correct cadence (4Hz) with proper ANT+ accumulator behavior (rolling event counts, accumulated power with rollover).
-- **Real hardware path**: Install `incyclist-ant-plus`, use its `AntPlusBaseSensor` subclasses for Power, HR, and Cadence profiles. The accumulator logic in `ant-broadcaster.ts` already implements correct rollover behavior.
-- **Device IDs**: Persisted in electron-store settings. Defaults: power=12345, HR=12346, cadence=12347.
+### ANT+ Library: `incyclist-ant-plus` (real hardware + simulated fallback)
+- **Hardware path**: `AntBroadcaster` opens `AntDevice` from `incyclist-ant-plus/lib/bindings`, configures three TX channels (power 0x0B, HR 0x78, cadence 0x79), and sends real ANT+ broadcast payloads at 4Hz via `antDevice.write()`.
+- **Simulated fallback**: If `AntDevice.open()` fails (no dongle, wrong driver), broadcaster automatically falls back to logging payloads at the correct cadence. UI behaviour is identical.
+- **Device IDs**: Passed from electron-store settings at broadcast start. Defaults: power=12345, HR=12346, cadence=12347.
+- **Windows driver**: ANT USB-m Stick (VID=0x0fcf PID=0x1009) confirmed working with WinUSB driver via Zadig. Use `node scripts/check-ant-device.mjs` to verify device is visible and openable.
+- **Broadcast payload format**: `Messages.broadcastData([channelNo, ...8 data bytes])` — channel number is the first byte of the payload array.
+- **CSP in dev**: `webRequest.onHeadersReceived` CSP override is skipped in dev mode (when `ELECTRON_RENDERER_URL` is set) so Vite HMR works.
 
 ### Render Pipeline: Stubbed
 - **Current state**: The render button is wired but returns a "not implemented" stub. The intended approach is headless Chromium (via Puppeteer) frame capture + ffmpeg encoding, NOT Remotion.

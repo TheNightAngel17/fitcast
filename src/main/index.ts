@@ -178,7 +178,9 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('ant:startBroadcast', async () => {
     if (!currentRideData) throw new Error('No ride data loaded');
-    return antBroadcaster.startBroadcasting(currentRideData);
+    const deviceIds = (settings.get('antDeviceIds') as { power: number; heartRate: number; cadence: number }) ??
+      { power: 12345, heartRate: 12346, cadence: 12347 };
+    return antBroadcaster.startBroadcasting(currentRideData, deviceIds);
   });
 
   ipcMain.handle('ant:stopBroadcast', async () => {

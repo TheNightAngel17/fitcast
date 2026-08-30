@@ -1,27 +1,38 @@
 /**
- * ANT+ Broadcaster — manages simulated ANT+ sensor broadcasts.
+ * ANT+ Broadcaster — manages ANT+ sensor broadcasts.
  *
  * Two-phase operation:
- * 1. Start Broadcasting: idle broadcast (zeros/placeholders) so receivers can discover & pair
+ * 1. Start Broadcasting: idle broadcast (zeros) so receivers can discover & pair
  * 2. Start Playback: replay .fit data in real-time over the already-open broadcast
  *
- * Uses a mock/simulated mode by default (no USB hardware required) that logs
- * exact payloads at the correct cadence. Set ANT_SIMULATED=false env var
- * or settings to attempt real USB ANT+ stick connection.
- *
- * NOTE: Real ANT+ hardware broadcasting is UNVERIFIED — built without hardware.
- * The incyclist-ant-plus library is the intended real implementation, but it's
- * marked as a TODO until hardware testing is possible.
+ * Attempts real USB hardware via incyclist-ant-plus. If the device fails to open
+ * (not plugged in, wrong driver, etc.) it falls back to simulation mode which
+ * logs correct payloads at the right cadence without touching hardware.
  */
 
+import { AntDevice } from 'incyclist-ant-plus/lib/bindings';
+import { Messages } from 'incyclist-ant-plus';
 import type { RideData } from '../shared/ride-data';
 import { sampleAtElapsedSeconds } from '../shared/ride-data';
 
-export type BroadcastStatus =
-  | 'idle'
-  | 'broadcasting'
-  | 'playing'
-  | 'error';
+// ANT+ profile constants
+const DEVICE_TYPE_POWER = 0x0b;
+const DEVICE_TYPE_HR = 0x78;
+const DEVICE_TYPE_CADENCE = 0x79;
+const TX_TYPE_POWER = 0x05;
+const TX_TYPE_SENSOR = 0x01;
+const RF_FREQUENCY = 57; // 2.4 GHz ANT band
+const PERIOD_POWER = 8182; // ~4 Hz
+const PERIOD_HR = 8070; // ~4 Hz
+const PERIOD_CADENCE = 8102; // ~4 Hz
+
+export interface DeviceIds {
+  power: number;
+  heartRate: number;
+  cadence: number;
+}
+
+export type BroadcastStatus = 'idle' | 'broadcasting' | 'playing' | 'error';
 
 interface BroadcastState {
   status: BroadcastStatus;
@@ -32,34 +43,48 @@ interface BroadcastState {
   lastHeartRate: number;
 }
 
-/**
- * ANT+ power data page accumulators.
- * Standard power-only page (0x10) uses rolling event count and accumulated power.
- * Receivers derive power from deltas between messages.
- */
 interface PowerAccumulator {
   eventCount: number; // 0-255, rolls over
   accumulatedPower: number; // 0-65535, rolls over
 }
 
 interface CadenceAccumulator {
-  eventCount: number; // bike cadence revolution count, 0-65535
-  eventTime: number; // in 1/1024s units, 0-65535
+  eventCount: number; // cumulative revolution count, 0-65535
+  eventTime: number; // last event time in 1/1024s units, 0-65535
 }
 
 interface HrAccumulator {
-  beatCount: number; // 0-255
-  beatTime: number; // in 1/1024s units, 0-65535
+  beatCount: number; // 0-255, rolls over
+  beatTime: number; // last beat time in 1/1024s units, 0-65535
 }
 
+// Minimal interface for what we need from a channel object
+interface AntChannel {
+  getChannelNo(): number;
+  sendMessage(data: Buffer, opts?: { timeout?: number }): Promise<unknown>;
+}
+
+type Logger = {
+  info: (...args: unknown[]) => void;
+  warn: (...args: unknown[]) => void;
+  error: (...args: unknown[]) => void;
+};
+
 export class AntBroadcaster {
-  private log: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void };
+  private log: Logger;
   private rideData: RideData | null = null;
   private status: BroadcastStatus = 'idle';
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private playbackStartTime: number | null = null;
   private playbackOffset = 0;
   private error: string | null = null;
+  private simulated = true;
+
+  // Hardware
+  private antDevice: AntDevice | null = null;
+  private pwrChannel: AntChannel | null = null;
+  private hrChannel: AntChannel | null = null;
+  private cadChannel: AntChannel | null = null;
 
   // ANT+ accumulators
   private powerAcc: PowerAccumulator = { eventCount: 0, accumulatedPower: 0 };
@@ -71,17 +96,20 @@ export class AntBroadcaster {
   private currentCadence = 0;
   private currentHeartRate = 0;
 
-  // Broadcast interval (ANT+ standard: ~4Hz for power, ~4Hz for HR)
-  private readonly BROADCAST_INTERVAL_MS = 250; // 4Hz
+  private readonly BROADCAST_INTERVAL_MS = 250; // 4 Hz
 
-  constructor(logger: { info: (...args: unknown[]) => void; warn: (...args: unknown[]) => void; error: (...args: unknown[]) => void }) {
+  constructor(logger: Logger) {
     this.log = logger;
   }
 
   /**
-   * Phase 1: Start broadcasting idle/zero data so receivers can discover and pair.
+   * Phase 1: Open hardware (or fall back to sim), broadcast idle/zero data
+   * so receivers can discover and pair before playback starts.
    */
-  startBroadcasting(rideData: RideData): { status: BroadcastStatus } {
+  async startBroadcasting(
+    rideData: RideData,
+    deviceIds: DeviceIds = { power: 12345, heartRate: 12346, cadence: 12347 }
+  ): Promise<{ status: BroadcastStatus }> {
     this.rideData = rideData;
     this.resetAccumulators();
     this.currentPower = 0;
@@ -89,14 +117,31 @@ export class AntBroadcaster {
     this.currentHeartRate = 0;
     this.error = null;
 
-    this.log.info('[ANT+] Starting idle broadcast (simulated mode)');
+    try {
+      this.antDevice = new AntDevice({ startupTimeout: 3000 });
+      const opened = await this.antDevice.open();
+      if (!opened) {
+        this.log.warn('[ANT+] Device.open() returned false — falling back to simulation');
+        this.antDevice = null;
+        this.simulated = true;
+      } else {
+        await this.openChannels(deviceIds);
+        this.simulated = false;
+        this.log.info('[ANT+] Hardware broadcasting started (power=%d hr=%d cad=%d)', deviceIds.power, deviceIds.heartRate, deviceIds.cadence);
+      }
+    } catch (err) {
+      this.log.warn('[ANT+] Hardware error, falling back to simulation:', err);
+      this.antDevice = null;
+      this.simulated = true;
+    }
+
     this.status = 'broadcasting';
     this.startBroadcastLoop();
     return { status: this.status };
   }
 
   /**
-   * Phase 2: Start replaying .fit data over the broadcast.
+   * Phase 2: Start replaying .fit data over the already-open broadcast.
    */
   startPlayback(startOffset: number): { status: BroadcastStatus } {
     if (this.status !== 'broadcasting') {
@@ -105,21 +150,16 @@ export class AntBroadcaster {
     if (!this.rideData) {
       throw new Error('No ride data loaded');
     }
-
     this.playbackOffset = startOffset;
     this.playbackStartTime = Date.now();
     this.status = 'playing';
-    this.log.info(`[ANT+] Starting playback from offset ${startOffset}s`);
+    this.log.info('[ANT+] Starting playback from offset %ds', startOffset);
     return { status: this.status };
   }
 
-  /**
-   * Stop playback but keep broadcasting idle data.
-   */
+  /** Stop playback but keep broadcasting idle data. */
   stopPlayback(): { status: BroadcastStatus } {
-    if (this.status !== 'playing') {
-      return { status: this.status };
-    }
+    if (this.status !== 'playing') return { status: this.status };
     this.playbackStartTime = null;
     this.currentPower = 0;
     this.currentCadence = 0;
@@ -129,12 +169,11 @@ export class AntBroadcaster {
     return { status: this.status };
   }
 
-  /**
-   * Stop everything — release channels.
-   */
-  stopBroadcasting(): { status: BroadcastStatus } {
+  /** Stop everything — close channels and release hardware. */
+  async stopBroadcasting(): Promise<{ status: BroadcastStatus }> {
     this.stopBroadcastLoop();
     this.playbackStartTime = null;
+    await this.closeChannels();
     this.status = 'idle';
     this.log.info('[ANT+] Broadcast stopped');
     return { status: this.status };
@@ -142,7 +181,8 @@ export class AntBroadcaster {
 
   /** Alias for cleanup on quit. */
   stopAll(): void {
-    this.stopBroadcasting();
+    this.stopBroadcastLoop();
+    this.closeChannels().catch(() => {});
   }
 
   getStatus(): BroadcastState {
@@ -160,18 +200,85 @@ export class AntBroadcaster {
     };
   }
 
-  // ─── Private ─────────────────────────────────────────────────────
+  // ─── Hardware setup/teardown ──────────────────────────────────────────
 
-  private resetAccumulators(): void {
-    this.powerAcc = { eventCount: 0, accumulatedPower: 0 };
-    this.cadenceAcc = { eventCount: 0, eventTime: 0 };
-    this.hrAcc = { beatCount: 0, beatTime: 0 };
+  private async openChannels(deviceIds: DeviceIds): Promise<void> {
+    const ant = this.antDevice!;
+
+    // Power channel
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.pwrChannel = (ant as any).getChannel() as AntChannel | null;
+    if (!this.pwrChannel) throw new Error('No ANT+ channels available');
+    const pwrNo = this.pwrChannel.getChannelNo();
+    await this.pwrChannel.sendMessage(Messages.assignChannel(pwrNo, 'transmit'), { timeout: 2000 });
+    await this.pwrChannel.sendMessage(Messages.setDevice(pwrNo, deviceIds.power, DEVICE_TYPE_POWER, TX_TYPE_POWER), { timeout: 2000 });
+    await this.pwrChannel.sendMessage(Messages.setFrequency(pwrNo, RF_FREQUENCY), { timeout: 2000 });
+    await this.pwrChannel.sendMessage(Messages.setPeriod(pwrNo, PERIOD_POWER), { timeout: 2000 });
+    await this.pwrChannel.sendMessage(Messages.openChannel(pwrNo), { timeout: 2000 });
+    this.log.info('[ANT+] Power channel %d opened (device ID %d)', pwrNo, deviceIds.power);
+
+    // HR channel
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.hrChannel = (ant as any).getChannel() as AntChannel | null;
+    if (!this.hrChannel) throw new Error('No ANT+ channels available for HR');
+    const hrNo = this.hrChannel.getChannelNo();
+    await this.hrChannel.sendMessage(Messages.assignChannel(hrNo, 'transmit'), { timeout: 2000 });
+    await this.hrChannel.sendMessage(Messages.setDevice(hrNo, deviceIds.heartRate, DEVICE_TYPE_HR, TX_TYPE_SENSOR), { timeout: 2000 });
+    await this.hrChannel.sendMessage(Messages.setFrequency(hrNo, RF_FREQUENCY), { timeout: 2000 });
+    await this.hrChannel.sendMessage(Messages.setPeriod(hrNo, PERIOD_HR), { timeout: 2000 });
+    await this.hrChannel.sendMessage(Messages.openChannel(hrNo), { timeout: 2000 });
+    this.log.info('[ANT+] HR channel %d opened (device ID %d)', hrNo, deviceIds.heartRate);
+
+    // Cadence channel
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.cadChannel = (ant as any).getChannel() as AntChannel | null;
+    if (!this.cadChannel) throw new Error('No ANT+ channels available for cadence');
+    const cadNo = this.cadChannel.getChannelNo();
+    await this.cadChannel.sendMessage(Messages.assignChannel(cadNo, 'transmit'), { timeout: 2000 });
+    await this.cadChannel.sendMessage(Messages.setDevice(cadNo, deviceIds.cadence, DEVICE_TYPE_CADENCE, TX_TYPE_SENSOR), { timeout: 2000 });
+    await this.cadChannel.sendMessage(Messages.setFrequency(cadNo, RF_FREQUENCY), { timeout: 2000 });
+    await this.cadChannel.sendMessage(Messages.setPeriod(cadNo, PERIOD_CADENCE), { timeout: 2000 });
+    await this.cadChannel.sendMessage(Messages.openChannel(cadNo), { timeout: 2000 });
+    this.log.info('[ANT+] Cadence channel %d opened (device ID %d)', cadNo, deviceIds.cadence);
   }
 
+  private async closeChannels(): Promise<void> {
+    const tryClose = async (ch: AntChannel | null): Promise<void> => {
+      if (!ch) return;
+      try {
+        await ch.sendMessage(Messages.closeChannel(ch.getChannelNo()), { timeout: 1000 });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this.antDevice as any)?.freeChannel(ch);
+      } catch {
+        // best-effort
+      }
+    };
+
+    await Promise.all([
+      tryClose(this.pwrChannel),
+      tryClose(this.hrChannel),
+      tryClose(this.cadChannel),
+    ]);
+    this.pwrChannel = null;
+    this.hrChannel = null;
+    this.cadChannel = null;
+
+    if (this.antDevice) {
+      try {
+        await this.antDevice.close();
+      } catch {
+        // best-effort
+      }
+      this.antDevice = null;
+    }
+    this.simulated = true;
+  }
+
+  // ─── Broadcast loop ───────────────────────────────────────────────────
+
   /**
-   * Drift-corrected broadcast loop.
-   * Each tick is scheduled against the absolute start time to prevent
-   * accumulation error over long replays.
+   * Drift-corrected broadcast loop. Each tick is scheduled against the
+   * absolute start time to prevent accumulation error over long replays.
    */
   private startBroadcastLoop(): void {
     const startTime = Date.now();
@@ -189,25 +296,26 @@ export class AntBroadcaster {
           this.currentCadence = Math.round(sample.cadence ?? 0);
           this.currentHeartRate = Math.round(sample.heartRate ?? 0);
         } else {
-          // Past end of ride — stop playback but continue idle broadcast
           this.log.info('[ANT+] Playback reached end of ride data');
           this.stopPlayback();
         }
       }
 
-      // Update accumulators and build payloads
       this.updatePowerAccumulator();
       this.updateCadenceAccumulator();
       this.updateHrAccumulator();
 
-      // Log the simulated broadcast
-      this.log.info(
-        `[ANT+ SIM] Power: ${this.currentPower}W (evt:${this.powerAcc.eventCount} acc:${this.powerAcc.accumulatedPower}) | ` +
-        `Cadence: ${this.currentCadence}rpm (rev:${this.cadenceAcc.eventCount}) | ` +
-        `HR: ${this.currentHeartRate}bpm (beat:${this.hrAcc.beatCount})`
-      );
+      if (this.simulated) {
+        this.log.info(
+          '[ANT+ SIM] Power: %dW (evt:%d acc:%d) | Cadence: %drpm (rev:%d) | HR: %dbpm (beat:%d)',
+          this.currentPower, this.powerAcc.eventCount, this.powerAcc.accumulatedPower,
+          this.currentCadence, this.cadenceAcc.eventCount,
+          this.currentHeartRate, this.hrAcc.beatCount,
+        );
+      } else {
+        this.sendHardwarePayloads();
+      }
 
-      // Schedule next tick with drift correction
       tickCount++;
       const nextTime = startTime + tickCount * this.BROADCAST_INTERVAL_MS;
       const delay = Math.max(0, nextTime - Date.now());
@@ -224,14 +332,82 @@ export class AntBroadcaster {
     }
   }
 
+  private sendHardwarePayloads(): void {
+    if (!this.antDevice) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const write = (buf: Buffer): void => (this.antDevice as any).write(buf);
+
+    // Power-Only Data Page 0x10 (ANT+ Bicycle Power profile)
+    // [channelNo, pageNum, updateEventCount, 0xFF(pedal power N/A), cadence,
+    //  accPower_lo, accPower_hi, power_lo, power_hi]
+    if (this.pwrChannel) {
+      const pwrNo = this.pwrChannel.getChannelNo();
+      const { accumulatedPower: ap, eventCount: ec } = this.powerAcc;
+      write(Messages.broadcastData([
+        pwrNo,
+        0x10,
+        ec & 0xff,
+        0xff,
+        this.currentCadence & 0xff,
+        ap & 0xff,
+        (ap >> 8) & 0xff,
+        this.currentPower & 0xff,
+        (this.currentPower >> 8) & 0xff,
+      ]));
+    }
+
+    // Heart Rate Data Page 0x00 (ANT+ HR profile, universal page)
+    // [channelNo, 0x00, 0xFF, 0xFF, 0xFF,
+    //  beatTime_lo, beatTime_hi, beatCount, computedHR]
+    if (this.hrChannel) {
+      const hrNo = this.hrChannel.getChannelNo();
+      const { beatTime: bt, beatCount: bc } = this.hrAcc;
+      write(Messages.broadcastData([
+        hrNo,
+        0x00,
+        0xff,
+        0xff,
+        0xff,
+        bt & 0xff,
+        (bt >> 8) & 0xff,
+        bc & 0xff,
+        this.currentHeartRate & 0xff,
+      ]));
+    }
+
+    // Bike Cadence Data Page 0x00 (ANT+ Cadence profile, universal page)
+    // [channelNo, 0x00, 0xFF, 0xFF, 0xFF,
+    //  eventTime_lo, eventTime_hi, revCount_lo, revCount_hi]
+    if (this.cadChannel) {
+      const cadNo = this.cadChannel.getChannelNo();
+      const { eventTime: et, eventCount: rev } = this.cadenceAcc;
+      write(Messages.broadcastData([
+        cadNo,
+        0x00,
+        0xff,
+        0xff,
+        0xff,
+        et & 0xff,
+        (et >> 8) & 0xff,
+        rev & 0xff,
+        (rev >> 8) & 0xff,
+      ]));
+    }
+  }
+
+  // ─── Accumulators ─────────────────────────────────────────────────────
+
+  private resetAccumulators(): void {
+    this.powerAcc = { eventCount: 0, accumulatedPower: 0 };
+    this.cadenceAcc = { eventCount: 0, eventTime: 0 };
+    this.hrAcc = { beatCount: 0, beatTime: 0 };
+  }
+
   /**
-   * ANT+ Power-Only Data Page (0x10) accumulator update.
-   * Event count increments each "pedal event" (approx 1 per crank revolution).
-   * Accumulated power adds instantaneous power each event.
-   * Both roll over at their respective maximums.
+   * ANT+ Power-Only Data Page (0x10) accumulator.
+   * Event count and accumulated power both roll over at their spec maximums.
    */
   private updatePowerAccumulator(): void {
-    // Simulate ~1 event per 250ms when power > 0 (simplified)
     if (this.currentPower > 0) {
       this.powerAcc.eventCount = (this.powerAcc.eventCount + 1) & 0xff;
       this.powerAcc.accumulatedPower =
@@ -241,23 +417,20 @@ export class AntBroadcaster {
 
   /**
    * ANT+ Bike Cadence accumulator.
-   * Revolution count and event time (1/1024s) track crank revolutions.
+   * Event time in 1/1024s units tracks crank revolution timing.
    */
   private updateCadenceAccumulator(): void {
     if (this.currentCadence > 0) {
-      // Time per revolution in 1/1024s units
       const secPerRev = 60 / this.currentCadence;
       const timeIncrement = Math.round(secPerRev * 1024);
-      this.cadenceAcc.eventTime =
-        (this.cadenceAcc.eventTime + timeIncrement) & 0xffff;
-      this.cadenceAcc.eventCount =
-        (this.cadenceAcc.eventCount + 1) & 0xffff;
+      this.cadenceAcc.eventTime = (this.cadenceAcc.eventTime + timeIncrement) & 0xffff;
+      this.cadenceAcc.eventCount = (this.cadenceAcc.eventCount + 1) & 0xffff;
     }
   }
 
   /**
    * ANT+ Heart Rate accumulator.
-   * Beat count and beat event time (1/1024s).
+   * Beat time in 1/1024s units tracks heartbeat timing.
    */
   private updateHrAccumulator(): void {
     if (this.currentHeartRate > 0) {
