@@ -34,6 +34,7 @@ export function FileDropZone({ onFileSelect, loading }: Props): React.ReactEleme
   }, []);
 
   const handleBrowse = useCallback(async () => {
+    if (!window.fitcast) return;
     const path = await window.fitcast.openFitDialog();
     if (path) onFileSelect(path);
   }, [onFileSelect]);

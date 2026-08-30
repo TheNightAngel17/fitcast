@@ -41,19 +41,21 @@ function createWindow(): void {
     show: false,
   });
 
-  // Restrictive CSP
-  mainWindow.webContents.session.webRequest.onHeadersReceived(
-    (details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'",
-          ],
-        },
-      });
-    }
-  );
+  // Restrictive CSP — only in production; dev server needs eval + inline for Vite HMR
+  if (!process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived(
+      (details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Content-Security-Policy': [
+              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'",
+            ],
+          },
+        });
+      }
+    );
+  }
 
   // Block new windows / navigation
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
