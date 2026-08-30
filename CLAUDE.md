@@ -53,12 +53,19 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 - **Package**: `npm run package` — builds + packages with electron-builder
 
 ### ANT+ Dongle Setup (Windows)
-**WARNING**: The ANT+ USB stick requires a WinUSB/libusb-compatible driver for Node.js USB libraries to claim it. Install using [Zadig](https://zadig.akeo.ie/):
+The ANT+ USB stick requires a libusb-compatible driver. **Use libusbK** — it works with both FitCast (via `incyclist-ant-plus`) AND Zwift simultaneously, so no driver swapping needed.
+
+Install using [Zadig](https://zadig.akeo.ie/):
 1. Plug in ANT+ dongle
 2. Run Zadig → Options → List All Devices
-3. Select the ANT+ device (usually "ANT USB Stick 2")
-4. Replace driver with WinUSB
-5. **This will make the dongle stop working with Garmin's own software until you revert the driver**
+3. Select the ANT+ device (ANT USB-m Stick, VID=0x0fcf PID=0x1009)
+4. Select driver: **libusbK (v3.1.0.0)**
+5. Click "Replace Driver"
+
+**Driver notes:**
+- `libusbK` allows both Zwift and FitCast to use the dongle — no switching required
+- `WinUSB` also works with FitCast but breaks Zwift
+- The original Garmin/ANT driver (libusb0) works with Zwift but not FitCast
 
 ### ffmpeg
 Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PATH. The app detects availability at runtime and shows a clear error if missing.
