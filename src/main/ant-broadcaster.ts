@@ -189,10 +189,9 @@ export class AntBroadcaster {
           this.currentCadence = Math.round(sample.cadence ?? 0);
           this.currentHeartRate = Math.round(sample.heartRate ?? 0);
         } else {
-          // Past end of ride
+          // Past end of ride — stop playback but continue idle broadcast
           this.log.info('[ANT+] Playback reached end of ride data');
           this.stopPlayback();
-          return;
         }
       }
 

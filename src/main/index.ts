@@ -3,7 +3,7 @@
  * Handles file I/O, .fit parsing, ANT+ broadcast, and render pipeline.
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { join } from 'path';
 import { readFile } from 'fs/promises';
 import { existsSync } from 'fs';

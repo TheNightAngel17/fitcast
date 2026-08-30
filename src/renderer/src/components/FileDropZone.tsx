@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 interface Props {
   onFileSelect: (filePath: string) => void;
@@ -7,7 +7,6 @@ interface Props {
 
 export function FileDropZone({ onFileSelect, loading }: Props): React.ReactElement {
   const [dragOver, setDragOver] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -49,7 +48,6 @@ export function FileDropZone({ onFileSelect, loading }: Props): React.ReactEleme
       role="button"
       tabIndex={0}
     >
-      <input ref={inputRef} type="file" accept=".fit" style={{ display: 'none' }} />
       {loading ? (
         <span className="drop-text">Parsing...</span>
       ) : (

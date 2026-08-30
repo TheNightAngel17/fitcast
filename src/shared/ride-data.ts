@@ -110,7 +110,7 @@ export function sampleAtElapsedSeconds(
   return interpolateSamples(a, b, frac);
 }
 
-/** Linearly interpolate between two samples. Null propagates: if either side is null, result is null. */
+/** Linearly interpolate between two samples. If one side is null, uses the other (forward-fill); if both null, returns null. */
 function interpolateSamples(
   a: RideSample,
   b: RideSample,
