@@ -159,16 +159,15 @@ export class AntBroadcaster {
     this.status = 'playing';
 
     // Diagnostic: confirm what channels are present and spot-check cadence values
-    const rd = this.rideData;
-    this.log.info('[ANT+] Ride channels: power=%s cadence=%s hr=%s',
-      rd.channels.power, rd.channels.cadence, rd.channels.heartRate);
-    const spots = [0, Math.floor(rd.samples.length / 2), rd.samples.length - 1];
-    for (const idx of spots) {
-      const s = rd.samples[idx];
-      if (s) this.log.info('[ANT+] sample[%d] t=%ds power=%s cad=%s hr=%s',
-        idx, Math.round(s.elapsedSeconds), s.power, s.cadence, s.heartRate);
+    if (process.env.ANT_DEBUG === '1') {
+      const rd = this.rideData;
+      this.log.info('[ANT+] Ride channels: power=%s cadence=%s hr=%s', rd.channels.power, rd.channels.cadence, rd.channels.heartRate);
+      const spots = [0, Math.floor(rd.samples.length / 2), rd.samples.length - 1];
+      for (const idx of spots) {
+        const s = rd.samples[idx];
+        if (s) this.log.info('[ANT+] sample[%d] t=%ds power=%s cad=%s hr=%s', idx, Math.round(s.elapsedSeconds), s.power, s.cadence, s.heartRate);
+      }
     }
-
     this.log.info('[ANT+] Starting playback from offset %ds', startOffset);
     return { status: this.status };
   }
