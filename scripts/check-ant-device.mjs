@@ -1,5 +1,13 @@
 // Quick ANT+ USB device detection script — run with: node scripts/check-ant-device.mjs
-import { getDeviceList } from 'usb';
+
+let getDeviceList;
+try {
+  ({ getDeviceList } = await import('usb'));
+} catch (err) {
+  console.error('usb package is not available (optional dependency). Install `usb` or reinstall dependencies with optional deps enabled.');
+  console.error(err);
+  process.exit(1);
+}
 
 const KNOWN_ANT_DEVICES = [
   { vid: 0x0fcf, pid: 0x1008, name: 'ANT USB Stick 2' },
