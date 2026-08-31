@@ -123,17 +123,20 @@ export class AntBroadcaster {
       const opened = await this.antDevice.open();
       if (!opened) {
         this.log.warn('[ANT+] Device.open() returned false — falling back to simulation');
-        this.antDevice = null;
-        this.simulated = true;
+        await this.closeChannels();
       } else {
         await this.openChannels(deviceIds);
         this.simulated = false;
-        this.log.info('[ANT+] Hardware broadcasting started (power=%d hr=%d cad=%d)', deviceIds.power, deviceIds.heartRate, deviceIds.cadence);
+        this.log.info(
+          '[ANT+] Hardware broadcasting started (power=%d hr=%d cad=%d)',
+          deviceIds.power,
+          deviceIds.heartRate,
+          deviceIds.cadence
+        );
       }
     } catch (err) {
       this.log.warn('[ANT+] Hardware error, falling back to simulation:', err);
-      this.antDevice = null;
-      this.simulated = true;
+      await this.closeChannels();
     }
 
     this.status = 'broadcasting';
