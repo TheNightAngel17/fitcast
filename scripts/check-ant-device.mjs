@@ -30,11 +30,12 @@ for (const def of KNOWN_ANT_DEVICES) {
 
   try {
     device.open();
-    console.log(`    Driver OK — device opened successfully via WinUSB/libusb`);
+    console.log('    Driver OK — device opened successfully via libusb (e.g. libusbK/WinUSB)');
     device.close();
   } catch (err) {
-    console.log(`    Driver ERROR — device found but could not open: ${err.message}`);
-    console.log(`    -> Make sure the WinUSB driver is installed via Zadig`);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`    Driver ERROR — device found but could not open: ${msg}`);
+    console.log('    -> Make sure a libusb-compatible driver is installed via Zadig (recommend: libusbK)');
   }
 }
 
