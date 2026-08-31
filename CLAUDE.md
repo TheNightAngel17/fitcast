@@ -11,10 +11,13 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 - **Gap handling**: Forward-fill short gaps (≤5s), leave longer gaps. Everything keyed off `elapsedSeconds` from ride start.
 - **Verified**: FIT epoch conversion produces sane dates (test asserts year 2000-2030). Tested against the real fixture file in `example-data/`.
 
-### ANT+ Library: Simulated-only for now
-- **Why**: `incyclist-ant-plus` is the recommended library (modern TS fork, actively maintained for indoor cycling), but cannot be installed/tested without hardware. The current implementation is a **simulated mode** that logs exact payloads at correct cadence (4Hz) with proper ANT+ accumulator behavior (rolling event counts, accumulated power with rollover).
-- **Real hardware path**: Install `incyclist-ant-plus`, use its `AntPlusBaseSensor` subclasses for Power, HR, and Cadence profiles. The accumulator logic in `ant-broadcaster.ts` already implements correct rollover behavior.
-- **Device IDs**: Persisted in electron-store settings. Defaults: power=12345, HR=12346, cadence=12347.
+### ANT+ Library: `incyclist-ant-plus` (real hardware + simulated fallback)
+- **Hardware path**: `AntBroadcaster` opens `AntDevice` from `incyclist-ant-plus/lib/bindings`, configures three TX channels (power 0x0B, HR 0x78, cadence 0x7A), and sends real ANT+ broadcast payloads at 4Hz via `antDevice.write()`.
+- **Simulated fallback**: If `AntDevice.open()` fails (no dongle, wrong driver), broadcaster automatically falls back to logging payloads at the correct cadence. UI behaviour is identical.
+- **Device IDs**: Passed from electron-store settings at broadcast start. Defaults: power=12345, HR=12346, cadence=12347.
+- **Windows driver**: ANT USB-m Stick (VID=0x0fcf PID=0x1009) confirmed working with libusbK driver via Zadig. Use `node scripts/check-ant-device.mjs` to verify device is visible and openable.
+- **Broadcast payload format**: `Messages.broadcastData([channelNo, ...8 data bytes])` — channel number is the first byte of the payload array.
+- **CSP in dev**: `webRequest.onHeadersReceived` CSP override is skipped in dev mode (when `ELECTRON_RENDERER_URL` is set) so Vite HMR works.
 
 ### Render Pipeline: Stubbed
 - **Current state**: The render button is wired but returns a "not implemented" stub. The intended approach is headless Chromium (via Puppeteer) frame capture + ffmpeg encoding, NOT Remotion.
@@ -50,12 +53,19 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 - **Package**: `npm run package` — builds + packages with electron-builder
 
 ### ANT+ Dongle Setup (Windows)
-**WARNING**: The ANT+ USB stick requires a WinUSB/libusb-compatible driver for Node.js USB libraries to claim it. Install using [Zadig](https://zadig.akeo.ie/):
+The ANT+ USB stick requires a libusb-compatible driver. **Use libusbK** — it works with both FitCast (via `incyclist-ant-plus`) AND Zwift simultaneously, so no driver swapping needed.
+
+Install using [Zadig](https://zadig.akeo.ie/):
 1. Plug in ANT+ dongle
 2. Run Zadig → Options → List All Devices
-3. Select the ANT+ device (usually "ANT USB Stick 2")
-4. Replace driver with WinUSB
-5. **This will make the dongle stop working with Garmin's own software until you revert the driver**
+3. Select the ANT+ device (ANT USB-m Stick, VID=0x0fcf PID=0x1009)
+4. Select driver: **libusbK (v3.1.0.0)**
+5. Click "Replace Driver"
+
+**Driver notes:**
+- `libusbK` allows both Zwift and FitCast to use the dongle — no switching required
+- `WinUSB` also works with FitCast but breaks Zwift
+- The original Garmin/ANT driver (libusb0) works with Zwift but not FitCast
 
 ### ffmpeg
 Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PATH. The app detects availability at runtime and shows a clear error if missing.

@@ -41,19 +41,21 @@ function createWindow(): void {
     show: false,
   });
 
-  // Restrictive CSP
-  mainWindow.webContents.session.webRequest.onHeadersReceived(
-    (details, callback) => {
-      callback({
-        responseHeaders: {
-          ...details.responseHeaders,
-          'Content-Security-Policy': [
-            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'",
-          ],
-        },
-      });
-    }
-  );
+  // Restrictive CSP — only in production; dev server needs eval + inline for Vite HMR
+  if (!process.env.ELECTRON_RENDERER_URL) {
+    mainWindow.webContents.session.webRequest.onHeadersReceived(
+      (details, callback) => {
+        callback({
+          responseHeaders: {
+            ...details.responseHeaders,
+            'Content-Security-Policy': [
+              "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'",
+            ],
+          },
+        });
+      }
+    );
+  }
 
   // Block new windows / navigation
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -176,7 +178,17 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('ant:startBroadcast', async () => {
     if (!currentRideData) throw new Error('No ride data loaded');
-    return antBroadcaster.startBroadcasting(currentRideData);
+    const fallback = { power: 12345, heartRate: 12346, cadence: 12347 };
+    const raw = settings.get('antDeviceIds');
+    const deviceIds =
+      raw &&
+      typeof raw === 'object' &&
+      typeof (raw as any).power === 'number' &&
+      typeof (raw as any).heartRate === 'number' &&
+      typeof (raw as any).cadence === 'number'
+        ? (raw as { power: number; heartRate: number; cadence: number })
+        : fallback;
+    return antBroadcaster.startBroadcasting(currentRideData, deviceIds);
   });
 
   ipcMain.handle('ant:stopBroadcast', async () => {

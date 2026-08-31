@@ -31,7 +31,7 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
         setPower(status.lastPower);
         setCadence(status.lastCadence);
         setHr(status.lastHeartRate);
-        if (status.status === 'idle' && antState !== 'idle') {
+        if (status.status === 'idle') {
           setAntState('idle');
         } else if (status.status === 'broadcasting' && antState === 'playing') {
           // Playback ended, returned to broadcasting

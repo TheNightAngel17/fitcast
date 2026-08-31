@@ -21,9 +21,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "electron-store": "^8.2.0",
     "electron-log": "^5.3.0",
-    "fit-file-parser": "^2.1.0"
+    "electron-store": "^8.2.0",
+    "fit-file-parser": "^2.1.0",
+    "incyclist-ant-plus": "^0.3.6"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
