@@ -354,7 +354,15 @@ export class AntBroadcaster {
   private sendHardwarePayloads(): void {
     if (!this.antDevice) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const write = (buf: Buffer): void => (this.antDevice as any).write(buf);
+    const write = (buf: Buffer): void => {
+      try {
+        (this.antDevice as any).write(buf);
+      } catch (err) {
+        this.log.warn('[ANT+] Hardware write failed, falling back to simulation:', err);
+        this.error = err instanceof Error ? err.message : String(err);
+        this.simulated = true;
+      }
+    };
     this._hwTick++;
 
     // Power-Only Data Page 0x10 (ANT+ Bicycle Power profile)
