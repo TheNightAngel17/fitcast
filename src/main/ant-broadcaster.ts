@@ -18,7 +18,7 @@ import { sampleAtElapsedSeconds } from '../shared/ride-data';
 // ANT+ profile constants
 const DEVICE_TYPE_POWER = 0x0b;
 const DEVICE_TYPE_HR = 0x78;
-const DEVICE_TYPE_CADENCE = 0x79;
+const DEVICE_TYPE_CADENCE = 0x7a;
 const TX_TYPE_POWER = 0x05;
 const TX_TYPE_SENSOR = 0x01;
 const RF_FREQUENCY = 57; // 2.4 GHz ANT band
@@ -79,6 +79,7 @@ export class AntBroadcaster {
   private playbackOffset = 0;
   private error: string | null = null;
   private simulated = true;
+  private _hwTick = 0; // for debug log throttling in hardware path
 
   // Hardware
   private antDevice: AntDevice | null = null;
@@ -153,6 +154,18 @@ export class AntBroadcaster {
     this.playbackOffset = startOffset;
     this.playbackStartTime = Date.now();
     this.status = 'playing';
+
+    // Diagnostic: confirm what channels are present and spot-check cadence values
+    const rd = this.rideData;
+    this.log.info('[ANT+] Ride channels: power=%s cadence=%s hr=%s',
+      rd.channels.power, rd.channels.cadence, rd.channels.heartRate);
+    const spots = [0, Math.floor(rd.samples.length / 2), rd.samples.length - 1];
+    for (const idx of spots) {
+      const s = rd.samples[idx];
+      if (s) this.log.info('[ANT+] sample[%d] t=%ds power=%s cad=%s hr=%s',
+        idx, Math.round(s.elapsedSeconds), s.power, s.cadence, s.heartRate);
+    }
+
     this.log.info('[ANT+] Starting playback from offset %ds', startOffset);
     return { status: this.status };
   }
@@ -295,6 +308,12 @@ export class AntBroadcaster {
           this.currentPower = Math.round(sample.power ?? 0);
           this.currentCadence = Math.round(sample.cadence ?? 0);
           this.currentHeartRate = Math.round(sample.heartRate ?? 0);
+          // Log raw sample values every 4 ticks (1s) to aid debugging
+          if (tickCount % 4 === 0) {
+            this.log.info('[ANT+ DBG] t=%.1fs raw: power=%s cad=%s hr=%s → using: %dW %drpm %dbpm',
+              elapsed, sample.power, sample.cadence, sample.heartRate,
+              this.currentPower, this.currentCadence, this.currentHeartRate);
+          }
         } else {
           this.log.info('[ANT+] Playback reached end of ride data');
           this.stopPlayback();
@@ -336,6 +355,7 @@ export class AntBroadcaster {
     if (!this.antDevice) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const write = (buf: Buffer): void => (this.antDevice as any).write(buf);
+    this._hwTick++;
 
     // Power-Only Data Page 0x10 (ANT+ Bicycle Power profile)
     // [channelNo, pageNum, updateEventCount, 0xFF(pedal power N/A), cadence,
@@ -343,7 +363,7 @@ export class AntBroadcaster {
     if (this.pwrChannel) {
       const pwrNo = this.pwrChannel.getChannelNo();
       const { accumulatedPower: ap, eventCount: ec } = this.powerAcc;
-      write(Messages.broadcastData([
+      const pwrBuf = Messages.broadcastData([
         pwrNo,
         0x10,
         ec & 0xff,
@@ -353,7 +373,13 @@ export class AntBroadcaster {
         (ap >> 8) & 0xff,
         this.currentPower & 0xff,
         (this.currentPower >> 8) & 0xff,
-      ]));
+      ]);
+      if (this._hwTick % 4 === 1) {
+        this.log.info('[ANT+ DBG PWR] ch=%d pwr=%dW cad=%drpm ec=%d bytes=%s',
+          pwrNo, this.currentPower, this.currentCadence, ec,
+          [...pwrBuf].map((b) => b.toString(16).padStart(2, '0')).join(' '));
+      }
+      write(pwrBuf);
     }
 
     // Heart Rate Data Page 0x00 (ANT+ HR profile, universal page)
@@ -381,7 +407,7 @@ export class AntBroadcaster {
     if (this.cadChannel) {
       const cadNo = this.cadChannel.getChannelNo();
       const { eventTime: et, eventCount: rev } = this.cadenceAcc;
-      write(Messages.broadcastData([
+      const cadBuf = Messages.broadcastData([
         cadNo,
         0x00,
         0xff,
@@ -391,7 +417,13 @@ export class AntBroadcaster {
         (et >> 8) & 0xff,
         rev & 0xff,
         (rev >> 8) & 0xff,
-      ]));
+      ]);
+      if (this._hwTick % 4 === 1) {
+        this.log.info('[ANT+ DBG CAD] ch=%d cad=%drpm et=%d rev=%d bytes=%s',
+          cadNo, this.currentCadence, et, rev,
+          [...cadBuf].map((b) => b.toString(16).padStart(2, '0')).join(' '));
+      }
+      write(cadBuf);
     }
   }
 
