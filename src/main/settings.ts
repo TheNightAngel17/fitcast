@@ -15,6 +15,8 @@ export interface AppSettings {
     cadence: number;
   };
   antSimulated?: boolean;
+  /** Functional threshold power in watts — drives timeline zone colouring. */
+  ftp?: number;
   obsWebsocketUrl?: string;
   obsWebsocketPassword?: string;
 }
@@ -35,6 +37,7 @@ export class SettingsStore {
           cadence: 12347,
         },
         antSimulated: true,
+        ftp: 250,
       },
     });
   }

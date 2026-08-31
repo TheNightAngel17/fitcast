@@ -1,21 +1,24 @@
 import React, { useState, useCallback } from 'react';
 import type { RideData } from '../../../shared/ride-data';
 import { formatDuration } from '../../../shared/ride-data';
+import type { RangeSelection } from '../../../shared/timeline';
 
 interface Props {
   rideData: RideData;
+  selection: RangeSelection;
   setStatus: (status: { message: string; type: 'info' | 'success' | 'warning' | 'error' }) => void;
 }
 
-export function RenderPanel({ rideData, setStatus }: Props): React.ReactElement {
+export function RenderPanel({ rideData, selection, setStatus }: Props): React.ReactElement {
   const [codec, setCodec] = useState('prores');
   const [width, setWidth] = useState(1920);
   const [height, setHeight] = useState(1080);
   const [fps, setFps] = useState(30);
-  const [startOffset, setStartOffset] = useState(0);
-  const [duration, setDuration] = useState(Math.round(rideData.totalElapsedSeconds));
   const [outputDir, setOutputDir] = useState('');
   const [rendering, setRendering] = useState(false);
+
+  const startOffset = Math.round(selection.start);
+  const duration = Math.round(selection.end - selection.start);
 
   const handleChooseDir = useCallback(async () => {
     const dir = await window.fitcast.chooseOutputDir();
@@ -93,19 +96,16 @@ export function RenderPanel({ rideData, setStatus }: Props): React.ReactElement 
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label>Start Offset (s)</label>
-          <input type="number" value={startOffset} onChange={(e) => setStartOffset(Number(e.target.value))} min={0} max={rideData.totalElapsedSeconds} />
-        </div>
-        <div className="form-group" style={{ flex: 1 }}>
-          <label>Duration (s)</label>
-          <input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={1} />
+      <div className="form-group">
+        <label>Render range (set on the timeline)</label>
+        <div className="range-readout">
+          {formatDuration(selection.start)} → {formatDuration(selection.end)} ·{' '}
+          {formatDuration(duration)} of {formatDuration(rideData.totalElapsedSeconds)}
         </div>
       </div>
 
       <div className="form-group">
-        <label>Output: {outputDir || '(not set)'} · {formatDuration(duration)} of ride</label>
+        <label>Output: {outputDir || '(not set)'}</label>
       </div>
 
       <div className="button-group">

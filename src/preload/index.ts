@@ -32,7 +32,8 @@ export interface FitCastAPI {
   // ANT+ Broadcasting
   startBroadcast: () => Promise<{ status: string }>;
   stopBroadcast: () => Promise<{ status: string }>;
-  startPlayback: (options: { startOffset: number }) => Promise<{ status: string }>;
+  /** `endOffset` stops playback partway through the ride; omit to run to the end. */
+  startPlayback: (options: { startOffset: number; endOffset?: number }) => Promise<{ status: string }>;
   stopPlayback: () => Promise<{ status: string }>;
   getAntStatus: () => Promise<{
     status: string;

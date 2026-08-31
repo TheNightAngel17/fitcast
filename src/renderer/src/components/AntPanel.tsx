@@ -1,52 +1,34 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import type { RideData } from '../../../shared/ride-data';
+import React, { useCallback } from 'react';
 import { formatDuration } from '../../../shared/ride-data';
+import type { RangeSelection } from '../../../shared/timeline';
+
+export type AntState = 'idle' | 'broadcasting' | 'playing';
+
+/** Live broadcaster telemetry, polled by App so the timeline can share it. */
+export interface AntStatusSnapshot {
+  status: string;
+  elapsedSeconds: number;
+  error?: string;
+  lastPower: number;
+  lastCadence: number;
+  lastHeartRate: number;
+}
 
 interface Props {
-  rideData: RideData;
+  selection: RangeSelection;
+  antState: AntState;
+  setAntState: (state: AntState) => void;
+  antStatus: AntStatusSnapshot | null;
   setStatus: (status: { message: string; type: 'info' | 'success' | 'warning' | 'error' }) => void;
 }
 
-type AntState = 'idle' | 'broadcasting' | 'playing';
-
-export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
-  const [antState, setAntState] = useState<AntState>('idle');
-  const [elapsed, setElapsed] = useState(0);
-  const [power, setPower] = useState(0);
-  const [cadence, setCadence] = useState(0);
-  const [hr, setHr] = useState(0);
-  const [startOffset, setStartOffset] = useState(0);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Poll ANT+ status when broadcasting or playing
-  useEffect(() => {
-    if (antState === 'idle') {
-      if (pollRef.current) clearInterval(pollRef.current);
-      return;
-    }
-    pollRef.current = setInterval(async () => {
-      try {
-        const status = await window.fitcast.getAntStatus();
-        setElapsed(status.elapsedSeconds);
-        setPower(status.lastPower);
-        setCadence(status.lastCadence);
-        setHr(status.lastHeartRate);
-        if (status.status === 'idle') {
-          setAntState('idle');
-        } else if (status.status === 'broadcasting' && antState === 'playing') {
-          // Playback ended, returned to broadcasting
-          setAntState('broadcasting');
-          setStatus({ message: 'Playback ended — still broadcasting', type: 'info' });
-        }
-      } catch {
-        // ignore poll errors
-      }
-    }, 500);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [antState, setStatus]);
-
+export function AntPanel({
+  selection,
+  antState,
+  setAntState,
+  antStatus,
+  setStatus,
+}: Props): React.ReactElement {
   const handleStartBroadcast = useCallback(async () => {
     try {
       await window.fitcast.startBroadcast();
@@ -58,7 +40,7 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
         type: 'error',
       });
     }
-  }, [setStatus]);
+  }, [setAntState, setStatus]);
 
   const handleStopBroadcast = useCallback(async () => {
     try {
@@ -71,11 +53,14 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
         type: 'error',
       });
     }
-  }, [setStatus]);
+  }, [setAntState, setStatus]);
 
   const handleStartPlayback = useCallback(async () => {
     try {
-      await window.fitcast.startPlayback({ startOffset });
+      await window.fitcast.startPlayback({
+        startOffset: Math.round(selection.start),
+        endOffset: Math.round(selection.end),
+      });
       setAntState('playing');
       setStatus({ message: 'Playback started — ride data broadcasting', type: 'success' });
     } catch (err) {
@@ -84,7 +69,7 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
         type: 'error',
       });
     }
-  }, [startOffset, setStatus]);
+  }, [selection.start, selection.end, setAntState, setStatus]);
 
   const handleStopPlayback = useCallback(async () => {
     try {
@@ -97,7 +82,9 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
         type: 'error',
       });
     }
-  }, [setStatus]);
+  }, [setAntState, setStatus]);
+
+  const live = antStatus ?? { lastPower: 0, lastCadence: 0, lastHeartRate: 0, elapsedSeconds: 0 };
 
   return (
     <div className="card">
@@ -110,20 +97,20 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
       {(antState === 'broadcasting' || antState === 'playing') && (
         <div className="live-readout">
           <div className="readout-item">
-            <span className="readout-value">{power}</span>
+            <span className="readout-value">{live.lastPower}</span>
             <span className="readout-unit">watts</span>
           </div>
           <div className="readout-item">
-            <span className="readout-value">{cadence}</span>
+            <span className="readout-value">{live.lastCadence}</span>
             <span className="readout-unit">rpm</span>
           </div>
           <div className="readout-item">
-            <span className="readout-value">{hr}</span>
+            <span className="readout-value">{live.lastHeartRate}</span>
             <span className="readout-unit">bpm</span>
           </div>
           {antState === 'playing' && (
             <div className="readout-item">
-              <span className="readout-value">{formatDuration(elapsed)}</span>
+              <span className="readout-value">{formatDuration(live.elapsedSeconds)}</span>
               <span className="readout-unit">elapsed</span>
             </div>
           )}
@@ -131,15 +118,11 @@ export function AntPanel({ rideData, setStatus }: Props): React.ReactElement {
       )}
 
       <div className="form-group">
-        <label>Start Offset (s)</label>
-        <input
-          type="number"
-          value={startOffset}
-          onChange={(e) => setStartOffset(Number(e.target.value))}
-          min={0}
-          max={rideData.totalElapsedSeconds}
-          disabled={antState === 'playing'}
-        />
+        <label>Playback range (set on the timeline)</label>
+        <div className="range-readout">
+          {formatDuration(selection.start)} → {formatDuration(selection.end)} ·{' '}
+          {formatDuration(selection.end - selection.start)}
+        </div>
       </div>
 
       <div className="button-group">
