@@ -311,7 +311,7 @@ export class AntBroadcaster {
           this.currentCadence = Math.round(sample.cadence ?? 0);
           this.currentHeartRate = Math.round(sample.heartRate ?? 0);
           // Log raw sample values every 4 ticks (1s) to aid debugging
-          if (tickCount % 4 === 0) {
+          if (process.env.ANT_DEBUG === '1' && tickCount % 4 === 0) {
             this.log.info('[ANT+ DBG] t=%.1fs raw: power=%s cad=%s hr=%s → using: %dW %drpm %dbpm',
               elapsed, sample.power, sample.cadence, sample.heartRate,
               this.currentPower, this.currentCadence, this.currentHeartRate);
