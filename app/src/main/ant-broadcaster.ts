@@ -374,10 +374,9 @@ export class AntBroadcaster {
 
   private sendHardwarePayloads(): void {
     if (!this.antDevice) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const write = (buf: Buffer): void => {
       try {
-        (this.antDevice as any).write(buf);
+        this.antDevice?.write(buf);
       } catch (err) {
         this.log.warn('[ANT+] Hardware write failed, falling back to simulation:', err);
         this.error = err instanceof Error ? err.message : String(err);

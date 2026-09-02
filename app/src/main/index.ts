@@ -180,14 +180,16 @@ function registerIpcHandlers(): void {
     if (!currentRideData) throw new Error('No ride data loaded');
     const fallback = { power: 12345, heartRate: 12346, cadence: 12347 };
     const raw = settings.get('antDeviceIds');
+    const isDeviceIds = (
+      value: unknown
+    ): value is { power: number; heartRate: number; cadence: number } =>
+      typeof value === 'object' &&
+      value !== null &&
+      typeof (value as Record<string, unknown>).power === 'number' &&
+      typeof (value as Record<string, unknown>).heartRate === 'number' &&
+      typeof (value as Record<string, unknown>).cadence === 'number';
     const deviceIds =
-      raw &&
-      typeof raw === 'object' &&
-      typeof (raw as any).power === 'number' &&
-      typeof (raw as any).heartRate === 'number' &&
-      typeof (raw as any).cadence === 'number'
-        ? (raw as { power: number; heartRate: number; cadence: number })
-        : fallback;
+      isDeviceIds(raw) ? raw : fallback;
     return antBroadcaster.startBroadcasting(currentRideData, deviceIds);
   });
 
