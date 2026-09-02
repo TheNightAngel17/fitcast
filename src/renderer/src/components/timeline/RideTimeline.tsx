@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { RideData } from '../../../../shared/ride-data';
-import { formatDuration } from '../../../../shared/ride-data';
+import { formatDuration, formatTimeOfDay } from '../../../../shared/ride-data';
 import type { RangeSelection } from '../../../../shared/timeline';
 import { OverviewTrack } from './OverviewTrack';
-import { DetailChart } from './DetailChart';
+import { DetailChart, type TimeMode } from './DetailChart';
 import { useElementWidth } from './useElementWidth';
 import '../../styles/timeline.css';
 
@@ -29,6 +29,7 @@ export function RideTimeline({
   const chartsRef = useRef<HTMLDivElement>(null);
   const width = useElementWidth(chartsRef);
   const [ftp, setFtp] = useState(0);
+  const [timeMode, setTimeMode] = useState<TimeMode>('elapsed');
 
   useEffect(() => {
     let cancelled = false;
@@ -57,13 +58,37 @@ export function RideTimeline({
   const isFullRide =
     selection.start <= 0 && selection.end >= rideData.totalElapsedSeconds;
 
+  // Duration is always shown elapsed — "how long", not a clock reading — even
+  // when the endpoints themselves are displayed as time of day.
+  const formatPoint = useCallback(
+    (t: number) =>
+      timeMode === 'clock' ? formatTimeOfDay(rideData.startTimestamp, t) : formatDuration(t),
+    [timeMode, rideData.startTimestamp]
+  );
+
   return (
     <div className="card tl-card">
       <div className="tl-header">
         <h2>📈 Timeline</h2>
         <div className="tl-range">
-          {formatDuration(selection.start)} → {formatDuration(selection.end)} ·{' '}
+          {formatPoint(selection.start)} → {formatPoint(selection.end)} ·{' '}
           <strong>{formatDuration(selection.end - selection.start)}</strong> selected
+        </div>
+        <div className="tl-time-toggle" role="group" aria-label="Time display">
+          <button
+            type="button"
+            className={timeMode === 'elapsed' ? 'active' : ''}
+            onClick={() => setTimeMode('elapsed')}
+          >
+            Elapsed Time
+          </button>
+          <button
+            type="button"
+            className={timeMode === 'clock' ? 'active' : ''}
+            onClick={() => setTimeMode('clock')}
+          >
+            Time of Day
+          </button>
         </div>
         <label className="tl-ftp">
           FTP
@@ -102,6 +127,7 @@ export function RideTimeline({
               selection={selection}
               playheadSeconds={playheadSeconds}
               ftp={ftp}
+              timeMode={timeMode}
               width={width}
               height={DETAIL_HEIGHT}
               padLeft={PAD_LEFT}

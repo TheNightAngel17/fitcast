@@ -1,6 +1,6 @@
 import React, { useCallback, useId, useMemo, useState } from 'react';
 import type { RideData } from '../../../../shared/ride-data';
-import { formatDuration, sampleAtElapsedSeconds } from '../../../../shared/ride-data';
+import { formatDuration, formatTimeOfDay, sampleAtElapsedSeconds } from '../../../../shared/ride-data';
 import type { RangeSelection } from '../../../../shared/timeline';
 import {
   decimateChannel,
@@ -16,11 +16,14 @@ const FLAT_FILL_COLOR = 'var(--accent)';
 /** Width, in pixels, of the smoothed blend at a power-zone crossing. */
 const ZONE_TRANSITION_PX = 8;
 
+export type TimeMode = 'elapsed' | 'clock';
+
 interface Props {
   rideData: RideData;
   selection: RangeSelection;
   playheadSeconds: number | null;
   ftp: number;
+  timeMode: TimeMode;
   width: number;
   height: number;
   padLeft: number;
@@ -46,6 +49,7 @@ export function DetailChart({
   selection,
   playheadSeconds,
   ftp,
+  timeMode,
   width,
   height,
   padLeft,
@@ -121,6 +125,12 @@ export function DetailChart({
   const hrTicks = useMemo(() => (hrMax ? ticksOver(0, hrMax, 5) : []), [hrMax]);
   const timeTicks = useMemo(() => ticksOver(start, end, 6), [start, end]);
 
+  const formatTime = useCallback(
+    (t: number) =>
+      timeMode === 'clock' ? formatTimeOfDay(rideData.startTimestamp, t) : formatDuration(t),
+    [timeMode, rideData.startTimestamp]
+  );
+
   const showThreshold = ftp > 0 && ftp <= powerMax;
   const playheadX =
     playheadSeconds !== null && playheadSeconds >= start && playheadSeconds <= end
@@ -182,7 +192,7 @@ export function DetailChart({
         {/* Time axis */}
         {timeTicks.map((t) => (
           <text key={`t${t}`} x={xOf(t)} y={plotBottom + 16} className="tl-axis-label tl-axis-time">
-            {formatDuration(t)}
+            {formatTime(t)}
           </text>
         ))}
 
@@ -235,7 +245,7 @@ export function DetailChart({
             right: tooltipFlipped ? width - hoverX + 12 : undefined,
           }}
         >
-          <div className="tl-tooltip-time">{formatDuration(hoverT)}</div>
+          <div className="tl-tooltip-time">{formatTime(hoverT)}</div>
           {hovered.power !== null && (
             <div>
               <span className="tl-tooltip-key">Power</span> {Math.round(hovered.power)} W
