@@ -6,18 +6,52 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 
 Both pipelines operate on a **time range selected on the timeline**, not on the whole ride.
 
+## Repository Layout
+
+- `app/` — the Electron app itself: `package.json`, all source, config, and tooling. **Run every `npm` command from inside `app/`**, not the repo root.
+- `docs/` — documentation, findings, and plans that aren't `CHANGELOG.md`, `CLAUDE.md`, or `README.md`.
+- Repo root — only `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `app/`, and `docs/`.
+
+## CHANGELOG.md
+
+### Format
+Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/): entries grouped under `### Added` / `### Changed` / `### Fixed` / `### Removed` / `### Deprecated` / `### Security`, newest version first, dates as `YYYY-MM-DD`. Omit empty category headers rather than leaving them blank. Version headers are `v`-prefixed (`## [v0.1.0]`) to match the git tag name exactly — the link footer below depends on this.
+
+### Every change gets an Unreleased entry
+Any change worth noting to someone using the app — a new feature, a behavior change, a bug fix — gets a bullet under `## [Unreleased]` in the same commit/PR that makes the change, not backfilled later. Skip purely internal changes (refactors, test-only changes, tooling) unless they change something a user or contributor would notice. Write entries in user-facing language describing what changed, not which file changed — match the tone of the existing v0.1.0 entries.
+
+Before adding a new bullet, check whether Unreleased already has one for the same feature/area. If a feature was added, then fixed, then changed again, then fixed again — all before the next release — that's **one** entry, edited in place each time, not four. `[Unreleased]` should always read as the diff between the last released version and right now, never as a log of the individual commits that got you there. When a fix lands for something Unreleased already claims as `Added`/`Changed` this cycle, correct that existing bullet (and its wording) instead of appending a separate `Fixed` bullet — a `Fixed` entry belongs in Unreleased only when it fixes something that shipped in a *previous* release.
+
+### Cutting a new version
+1. Rename `## [Unreleased]` to `## [vX.Y.Z] - YYYY-MM-DD` and add a fresh, empty `## [Unreleased]` above it.
+2. Update the link footer (see below).
+3. `git tag -a vX.Y.Z -m "..."` on the release commit, then `git push origin vX.Y.Z`.
+
+### Link footer
+Each version header is a markdown link reference, resolved at the bottom of the file, using GitHub's `/compare/{base}...{head}` diff view:
+- `[Unreleased]` always compares the newest tagged version against `HEAD`: `.../compare/vX.Y.Z...HEAD`.
+- Every version *after* the first compares against the version immediately before it: `.../compare/vPREV...vX.Y.Z`.
+- The very first version has nothing to diff against, so it links straight to the tag instead: `.../tree/vX.Y.Z`. Switch that to `.../releases/tag/vX.Y.Z` if a GitHub Release is ever published for it — a bare pushed tag doesn't get a releases page on its own.
+
+Concretely, when v0.2.0 ships the footer becomes:
+```
+[Unreleased]: https://github.com/TheNightAngel17/fitcast/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/TheNightAngel17/fitcast/compare/v0.1.0...v0.2.0
+[v0.1.0]: https://github.com/TheNightAngel17/fitcast/tree/v0.1.0
+```
+
 ## Key Decisions
 
 ### .fit Parser: `fit-file-parser` (v2.1.0)
 - **Why**: Well-maintained, handles developer fields and unknown message types gracefully, converts FIT epoch timestamps to JS Date objects automatically. `easy-fit` was considered but is less maintained and has rougher error handling.
 - **Gap handling**: Forward-fill short gaps (≤5s), leave longer gaps. Everything keyed off `elapsedSeconds` from ride start.
-- **Verified**: FIT epoch conversion produces sane dates (test asserts year 2000-2030). Tested against the real fixture file in `example-data/`.
+- **Verified**: FIT epoch conversion produces sane dates (test asserts year 2000-2030). Tested against the real fixture file in `app/example-data/`.
 
 ### ANT+ Library: `incyclist-ant-plus` (real hardware + simulated fallback)
 - **Hardware path**: `AntBroadcaster` opens `AntDevice` from `incyclist-ant-plus/lib/bindings`, configures three TX channels (power 0x0B, HR 0x78, cadence 0x7A), and sends real ANT+ broadcast payloads at 4Hz via `antDevice.write()`.
 - **Simulated fallback**: If `AntDevice.open()` fails (no dongle, wrong driver), broadcaster automatically falls back to logging payloads at the correct cadence. UI behaviour is identical.
 - **Device IDs**: Passed from electron-store settings at broadcast start. Defaults: power=12345, HR=12346, cadence=12347.
-- **Windows driver**: ANT USB-m Stick (VID=0x0fcf PID=0x1009) confirmed working with libusbK driver via Zadig. Use `node scripts/check-ant-device.mjs` to verify device is visible and openable.
+- **Windows driver**: ANT USB-m Stick (VID=0x0fcf PID=0x1009) confirmed working with libusbK driver via Zadig. From `app/`, use `node scripts/check-ant-device.mjs` to verify device is visible and openable.
 - **Broadcast payload format**: `Messages.broadcastData([channelNo, ...8 data bytes])` — channel number is the first byte of the payload array.
 - **CSP in dev**: `webRequest.onHeadersReceived` CSP override is skipped in dev mode (when `ELECTRON_RENDERER_URL` is set) so Vite HMR works.
 
@@ -36,7 +70,7 @@ Both pipelines operate on a **time range selected on the timeline**, not on the 
 ### Electron Architecture
 - **electron-vite** for build tooling with Vite for both main and renderer
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
-- All IPC via `contextBridge.exposeInMainWorld` with explicit typed API (see `src/preload/index.ts`)
+- All IPC via `contextBridge.exposeInMainWorld` with explicit typed API (see `app/src/preload/index.ts`)
 - CSP set via `webRequest.onHeadersReceived`
 - File reads happen main-side; drag-and-drop passes path only
 
@@ -52,9 +86,11 @@ Both pipelines operate on a **time range selected on the timeline**, not on the 
 5. **electron-store** may need `electron-builder` `extraResources` config for production builds
 6. **Windows-only**: Tested on Linux CI only. Windows-specific paths (Zadig driver, WinUSB) documented but not exercised.
 7. **`npm run lint` does not work** — the script exists but there is no ESLint config file in the repo. `npm run typecheck` works for JSX now, but still reports one pre-existing error in `fit-parser.ts:78` (`Buffer<ArrayBufferLike>` vs the `Buffer<ArrayBuffer>` that `fit-file-parser`'s types demand).
-8. **Renderer components are untested** — `vitest.config.ts` uses `environment: 'node'` with no jsdom and no `@testing-library/*`. This is why the timeline's chart math lives in `src/shared/timeline.ts` rather than beside the components.
+8. **Renderer components are untested** — `vitest.config.ts` uses `environment: 'node'` with no jsdom and no `@testing-library/*`. This is why the timeline's chart math lives in `app/src/shared/timeline.ts` rather than beside the components.
 
 ## Environment / Setup
+
+All commands below are run from inside `app/` (`cd app` first).
 
 - **Node**: v22 LTS (pinned in `.nvmrc`)
 - **Install**: `npm install` (runs `electron-builder install-app-deps` via postinstall for native module rebuild)
@@ -85,29 +121,30 @@ Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PA
 
 | Path | What |
 |------|------|
-| `src/shared/ride-data.ts` | Core data model: `RideData`, `RideSample`, `sampleAtElapsedSeconds()` |
-| `src/shared/fit-parser.ts` | `.fit` file parsing → `RideData` normalization |
-| `src/shared/timeline.ts` | Pure chart math: `decimateChannel()`, `channelExtent()`, `clampSelection()`, `niceCeiling()`, `powerZoneStops()` |
-| `src/shared/__tests__/` | Unit tests for data model, parser, and timeline math |
-| `src/main/index.ts` | Electron main process, IPC handlers, window creation |
-| `src/main/ant-broadcaster.ts` | ANT+ broadcast logic (simulated mode) with proper accumulators |
-| `src/main/ffmpeg-check.ts` | Runtime ffmpeg detection |
-| `src/main/settings.ts` | Persistent settings via electron-store |
-| `src/preload/index.ts` | Secure `contextBridge` API surface |
-| `src/renderer/src/App.tsx` | Root React component — owns `rideData`, the timeline `selection`, and the ANT+ status poll |
-| `src/renderer/src/styles/timeline.css` | Timeline styling (imported by `RideTimeline.tsx`) |
-| `src/renderer/src/components/FileDropZone.tsx` | Drag-and-drop .fit file input |
-| `src/renderer/src/components/RideSummaryPanel.tsx` | Parsed ride data preview |
-| `src/renderer/src/components/timeline/RideTimeline.tsx` | Timeline card: FTP input, range readout, composes both charts |
-| `src/renderer/src/components/timeline/OverviewTrack.tsx` | Full-ride power minimap + the two-handle brush (all pointer/keyboard interaction) |
-| `src/renderer/src/components/timeline/DetailChart.tsx` | Power (zone-filled, left axis) + heart rate (right axis) for the selected range |
-| `src/renderer/src/components/timeline/paths.ts` | SVG path builders that break at recording gaps |
-| `src/renderer/src/components/timeline/useElementWidth.ts` | `ResizeObserver` width hook |
-| `src/renderer/src/components/RenderPanel.tsx` | Render configuration & trigger (range comes from the timeline) |
-| `src/renderer/src/components/AntPanel.tsx` | ANT+ broadcast & playback controls (range comes from the timeline; status is a prop) |
-| `src/renderer/src/components/StatusBar.tsx` | Status bar with colored messages |
-| `electron.vite.config.ts` | electron-vite configuration |
-| `example-data/` | Real .fit fixture file for testing |
+| `app/src/shared/ride-data.ts` | Core data model: `RideData`, `RideSample`, `sampleAtElapsedSeconds()` |
+| `app/src/shared/fit-parser.ts` | `.fit` file parsing → `RideData` normalization |
+| `app/src/shared/timeline.ts` | Pure chart math: `decimateChannel()`, `channelExtent()`, `clampSelection()`, `niceCeiling()`, `zoneColorForValue()` |
+| `app/src/shared/__tests__/` | Unit tests for data model, parser, and timeline math |
+| `app/src/main/index.ts` | Electron main process, IPC handlers, window creation |
+| `app/src/main/ant-broadcaster.ts` | ANT+ broadcast logic (simulated mode) with proper accumulators |
+| `app/src/main/ffmpeg-check.ts` | Runtime ffmpeg detection |
+| `app/src/main/settings.ts` | Persistent settings via electron-store |
+| `app/src/preload/index.ts` | Secure `contextBridge` API surface |
+| `app/src/renderer/src/App.tsx` | Root React component — owns `rideData`, the timeline `selection`, and the ANT+ status poll |
+| `app/src/renderer/src/styles/timeline.css` | Timeline styling (imported by `RideTimeline.tsx`) |
+| `app/src/renderer/src/components/FileDropZone.tsx` | Drag-and-drop .fit file input |
+| `app/src/renderer/src/components/RideSummaryPanel.tsx` | Parsed ride data preview |
+| `app/src/renderer/src/components/timeline/RideTimeline.tsx` | Timeline card: FTP input, range readout, composes both charts |
+| `app/src/renderer/src/components/timeline/OverviewTrack.tsx` | Full-ride power minimap + the two-handle brush (all pointer/keyboard interaction) |
+| `app/src/renderer/src/components/timeline/DetailChart.tsx` | Power (zone-filled, left axis) + heart rate (right axis) for the selected range |
+| `app/src/renderer/src/components/timeline/paths.ts` | SVG path builders that break at recording gaps |
+| `app/src/renderer/src/components/timeline/useElementWidth.ts` | `ResizeObserver` width hook |
+| `app/src/renderer/src/components/RenderPanel.tsx` | Render configuration & trigger (range comes from the timeline) |
+| `app/src/renderer/src/components/AntPanel.tsx` | ANT+ broadcast & playback controls (range comes from the timeline; status is a prop) |
+| `app/src/renderer/src/components/StatusBar.tsx` | Status bar with colored messages |
+| `app/electron.vite.config.ts` | electron-vite configuration |
+| `app/example-data/` | Real .fit fixture file for testing |
+| `docs/` | Documentation, findings, and plans outside the three root docs |
 
 ## Suggested Next Steps (prioritized)
 
