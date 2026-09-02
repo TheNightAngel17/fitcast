@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `npm run typecheck` no longer fails on a `fit-file-parser` `Buffer` type mismatch, so CI can gate on typecheck.
+
 ## [v0.2.0] - 2026-09-01
 
 ### Added
