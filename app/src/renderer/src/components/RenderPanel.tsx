@@ -33,7 +33,7 @@ export function RenderPanel({ rideData, selection, setStatus }: Props): React.Re
 
   const format = useMemo(() => resolveRenderFormat(formatId), [formatId]);
   const frameRate = useMemo(() => resolveFrameRate(frameRateId), [frameRateId]);
-  const dimensionError = validateDimensions(width, height);
+  const dimensionError = validateDimensions(width, height, format);
   const totalFrames = frameCount(duration, frameRate);
 
   const handleChooseDir = useCallback(async () => {

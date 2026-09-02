@@ -11,6 +11,7 @@ import log from 'electron-log/main';
 import { parseFitFile } from '../shared/fit-parser';
 import type { RideData } from '../shared/ride-data';
 import { renderFormatById, validateDimensions, ffmpegEncodeArgs } from '../shared/render-formats';
+import type { RenderFormatId, FrameRate } from '../shared/render-formats';
 import { AntBroadcaster } from './ant-broadcaster';
 import { checkFfmpeg } from './ffmpeg-check';
 import { SettingsStore } from './settings';
@@ -141,10 +142,10 @@ function registerIpcHandlers(): void {
       _event,
       options: {
         outputPath: string;
-        format: string;
+        format: RenderFormatId;
         width: number;
         height: number;
-        frameRate: { num: number; den: number };
+        frameRate: FrameRate;
         startOffset: number;
         duration: number;
       }
@@ -159,7 +160,7 @@ function registerIpcHandlers(): void {
       if (!format) {
         throw new Error(`Unknown render format: ${options.format}`);
       }
-      const dimensionError = validateDimensions(options.width, options.height);
+      const dimensionError = validateDimensions(options.width, options.height, format);
       if (dimensionError) {
         throw new Error(dimensionError);
       }

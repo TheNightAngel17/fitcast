@@ -5,6 +5,7 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 import type { RideData } from '../shared/ride-data';
+import type { RenderFormatId, FrameRate } from '../shared/render-formats';
 
 export interface FitCastAPI {
   // File operations
@@ -20,12 +21,11 @@ export interface FitCastAPI {
   startRender: (options: {
     /** File path for single-file formats; directory path for frame sequences. */
     outputPath: string;
-    /** A `RenderFormatId` from `shared/render-formats`. */
-    format: string;
+    format: RenderFormatId;
     width: number;
     height: number;
     /** Exact rational — fractional NTSC rates must not be rounded to a decimal. */
-    frameRate: { num: number; den: number };
+    frameRate: FrameRate;
     startOffset: number;
     duration: number;
   }) => Promise<{ status: string; message?: string }>;

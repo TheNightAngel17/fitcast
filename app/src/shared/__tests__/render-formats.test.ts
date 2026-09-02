@@ -97,19 +97,28 @@ describe('frame rates', () => {
 });
 
 describe('dimension validation', () => {
-  it('accepts even dimensions', () => {
-    expect(validateDimensions(1920, 1080)).toBeNull();
-    expect(validateDimensions(640, 360)).toBeNull();
+  const prores = renderFormatById('prores4444')!;
+  const sequence = renderFormatById('png-sequence')!;
+
+  it('accepts even dimensions for ProRes', () => {
+    expect(validateDimensions(1920, 1080, prores)).toBeNull();
+    expect(validateDimensions(640, 360, prores)).toBeNull();
   });
 
-  it('rejects odd dimensions before ffmpeg can fail obscurely', () => {
-    expect(validateDimensions(1921, 1080)).toMatch(/even/);
-    expect(validateDimensions(1920, 1081)).toMatch(/even/);
+  it('rejects odd ProRes dimensions before ffmpeg can fail obscurely', () => {
+    expect(validateDimensions(1921, 1080, prores)).toMatch(/even/);
+    expect(validateDimensions(1920, 1081, prores)).toMatch(/even/);
   });
 
-  it('rejects non-integer and degenerate sizes', () => {
-    expect(validateDimensions(19.5, 1080)).toMatch(/whole numbers/);
-    expect(validateDimensions(0, 1080)).toMatch(/at least 2/);
+  it('accepts odd dimensions for a PNG sequence — no encoder, no chroma constraint', () => {
+    expect(validateDimensions(1921, 1080, sequence)).toBeNull();
+    expect(validateDimensions(641, 361, sequence)).toBeNull();
+  });
+
+  it('rejects non-integer and degenerate sizes regardless of format', () => {
+    expect(validateDimensions(19.5, 1080, prores)).toMatch(/whole numbers/);
+    expect(validateDimensions(0, 1080, prores)).toMatch(/at least 2/);
+    expect(validateDimensions(0, 1080, sequence)).toMatch(/at least 2/);
   });
 });
 

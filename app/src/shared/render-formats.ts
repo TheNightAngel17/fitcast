@@ -157,16 +157,22 @@ export function frameCount(durationSeconds: number, rate: FrameRate): number {
 
 /**
  * ProRes wants even dimensions; an odd width fails inside ffmpeg with a message
- * that never mentions the input box the user typed it into.
+ * that never mentions the input box the user typed it into. A PNG sequence goes
+ * through no encoder and has no such constraint, so the even-dimension check is
+ * skipped for it — pass the target `format` to apply the right rule.
  */
-export function validateDimensions(width: number, height: number): string | null {
+export function validateDimensions(
+  width: number,
+  height: number,
+  format: RenderFormat
+): string | null {
   if (!Number.isInteger(width) || !Number.isInteger(height)) {
     return 'Width and height must be whole numbers';
   }
   if (width < 2 || height < 2) {
     return 'Width and height must be at least 2 pixels';
   }
-  if (width % 2 !== 0 || height % 2 !== 0) {
+  if (format.requiresFfmpeg && (width % 2 !== 0 || height % 2 !== 0)) {
     return 'Width and height must both be even numbers';
   }
   return null;
