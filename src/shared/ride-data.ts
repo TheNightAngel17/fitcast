@@ -146,3 +146,13 @@ export function formatDuration(seconds: number): string {
   const s = Math.floor(seconds % 60);
   return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
+
+/**
+ * Format the wall-clock time of day at a given elapsed offset from ride
+ * start. Uses the OS locale, so 12h/24h formatting matches the user's own
+ * system setting rather than a hardcoded choice.
+ */
+export function formatTimeOfDay(startTimestamp: number, elapsedSeconds: number): string {
+  const d = new Date(startTimestamp + elapsedSeconds * 1000);
+  return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+}

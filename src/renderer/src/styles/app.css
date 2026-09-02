@@ -112,6 +112,16 @@
   margin-top: 12px;
 }
 
+/* Read-only echo of the timeline selection, shown in the Render and ANT+ panels. */
+.range-readout {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 .live-readout {
   display: flex;
   gap: 16px;

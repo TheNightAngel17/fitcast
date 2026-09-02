@@ -195,10 +195,13 @@ function registerIpcHandlers(): void {
     return antBroadcaster.stopBroadcasting();
   });
 
-  ipcMain.handle('ant:startPlayback', async (_event, options: { startOffset: number }) => {
-    if (!currentRideData) throw new Error('No ride data loaded');
-    return antBroadcaster.startPlayback(options.startOffset);
-  });
+  ipcMain.handle(
+    'ant:startPlayback',
+    async (_event, options: { startOffset: number; endOffset?: number }) => {
+      if (!currentRideData) throw new Error('No ride data loaded');
+      return antBroadcaster.startPlayback(options.startOffset, options.endOffset);
+    }
+  );
 
   ipcMain.handle('ant:stopPlayback', async () => {
     return antBroadcaster.stopPlayback();

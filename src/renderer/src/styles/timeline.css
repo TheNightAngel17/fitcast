@@ -1,0 +1,308 @@
+/* Ride timeline: full-ride overview track with a brush, plus a detail chart
+   scoped to the selected range. Colours come from the :root tokens in global.css. */
+
+.tl-card {
+  overflow: hidden;
+}
+
+.tl-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* .card h2 adds a bottom margin that throws off the flex header baseline. */
+.tl-card .tl-header h2 {
+  margin-bottom: 0;
+}
+
+.tl-range {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-range strong {
+  color: var(--text-primary);
+}
+
+.tl-time-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tl-time-toggle button {
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: none;
+  border-radius: 0;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tl-time-toggle button + button {
+  border-left: 1px solid var(--border);
+}
+
+.tl-time-toggle button.active {
+  background: var(--accent);
+  color: white;
+}
+
+.tl-ftp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tl-ftp input {
+  width: 72px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-reset {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+
+.tl-charts {
+  width: 100%;
+  position: relative;
+}
+
+/* ─── Overview track ────────────────────────────────────────────────── */
+
+.tl-overview {
+  display: block;
+  touch-action: none;
+  user-select: none;
+}
+
+.tl-overview-bg {
+  fill: var(--bg-primary);
+  cursor: crosshair;
+}
+
+.tl-overview-area {
+  fill: var(--text-secondary);
+  fill-opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Light enough that the unselected ride is still legible — the overview has to
+   keep working as a map of the whole ride, not just a frame around the window. */
+.tl-dim {
+  fill: rgba(10, 14, 26, 0.35);
+  pointer-events: none;
+}
+
+.tl-window {
+  fill: rgba(15, 138, 249, 0.1);
+  stroke: var(--accent);
+  stroke-width: 1;
+  cursor: grab;
+}
+
+.tl-window:active {
+  cursor: grabbing;
+}
+
+.tl-handle {
+  cursor: ew-resize;
+  outline: none;
+}
+
+.tl-handle-body {
+  fill: var(--bg-card);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.tl-handle:hover .tl-handle-body,
+.tl-handle:focus-visible .tl-handle-body {
+  fill: var(--accent);
+}
+
+.tl-handle:focus-visible .tl-handle-body {
+  stroke: var(--text-primary);
+  stroke-width: 2;
+}
+
+.tl-handle-grip {
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.tl-handle:hover .tl-handle-grip,
+.tl-handle:focus-visible .tl-handle-grip {
+  stroke: #fff;
+}
+
+/* ─── Detail chart ──────────────────────────────────────────────────── */
+
+.tl-detail-wrap {
+  position: relative;
+}
+
+.tl-detail {
+  display: block;
+}
+
+.tl-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-opacity: 0.6;
+}
+
+.tl-axis-label {
+  fill: var(--text-secondary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tl-axis-left {
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.tl-axis-right {
+  text-anchor: start;
+  dominant-baseline: middle;
+}
+
+.tl-axis-time {
+  text-anchor: middle;
+}
+
+.tl-power-line {
+  fill: none;
+  stroke: rgba(224, 224, 224, 0.55);
+  stroke-width: 1;
+  stroke-linejoin: round;
+}
+
+.tl-hr-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.tl-threshold line {
+  stroke: #ff6b6b;
+  stroke-width: 1;
+  stroke-dasharray: 5 4;
+}
+
+/* The label sits on top of the zone gradient, so give it a halo in the card
+   colour — without it the text is unreadable over the yellow/green bands. */
+.tl-threshold text {
+  fill: #ff8b8b;
+  font-size: 10px;
+  font-weight: 600;
+  stroke: var(--bg-card);
+  stroke-width: 3;
+  paint-order: stroke;
+  stroke-linejoin: round;
+}
+
+.tl-playhead {
+  stroke: var(--success);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.tl-crosshair line {
+  stroke: var(--text-primary);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.tl-dot-power {
+  fill: var(--text-primary);
+}
+
+.tl-hover-target {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.tl-tooltip {
+  position: absolute;
+  top: 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+.tl-tooltip-time {
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.tl-tooltip-key {
+  color: var(--text-secondary);
+  display: inline-block;
+  min-width: 56px;
+}
+
+/* ─── Legend ────────────────────────────────────────────────────────── */
+
+.tl-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.tl-legend-item::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.tl-legend-power::before {
+  background: #5cc98a;
+}
+
+.tl-legend-hr::before {
+  background: #c62828;
+}
+
+.tl-legend-hint {
+  margin-left: auto;
+  font-style: italic;
+  opacity: 0.75;
+}

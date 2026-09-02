@@ -4,6 +4,8 @@
 
 FitCast is an Electron desktop app (React renderer + Node main process) that parses cycling `.fit` files into a normalized data model and provides two pipelines: (1) **Render mode** generates a pre-composited overlay video with alpha channel for Premiere compositing, and (2) **Playback mode** replays ride data in real-time over ANT+ radio, driving external overlay tools like Xert EBC. The UI has three primary actions: **Render** (video output), **Start Broadcasting** (idle ANT+ sensor discovery), and **Playback** (live ride data over ANT+).
 
+Both pipelines operate on a **time range selected on the timeline**, not on the whole ride.
+
 ## Key Decisions
 
 ### .fit Parser: `fit-file-parser` (v2.1.0)
@@ -24,6 +26,13 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 - **Why not Remotion**: Remotion bundles its own Chromium which conflicts with Electron's, complicating distribution significantly. A Puppeteer-based pipeline is simpler for Electron packaging.
 - **ffmpeg**: Detected at runtime via `spawn('ffmpeg', ['-version'])`. Clear error surfaced if missing. Not bundled — user must install.
 
+### Timeline / Range Selection: hand-rolled SVG
+- **Why not a chart library**: no charting dep is installed. Recharts' `Brush` can't do window-panning or Xert-style handles and needs heavy dark-theme restyling; uPlot is imperative DOM and awkward under React 18 StrictMode. Two hand-rolled SVGs cost ~450 lines and give full control.
+- **Decimation, not raw plotting**: `decimateChannel()` buckets samples into one column per pixel keeping min/max/avg. The 4h fixture is 12,448 samples; the detail chart plots ~1,000 columns. The power envelope uses `max` so peaks survive (unit-tested against the fixture).
+- **X is always `elapsedSeconds`, never sample index** — the parser leaves gaps >5s as real holes, so index-based plotting would compress pauses. `decimateChannel` emits `null` at those holes and the path breaks there.
+- **Zone gradient**: colour depends only on the Y value, so a single vertical `<linearGradient>` with hard stops, clipped to the area path, reproduces the banding at zero per-column cost. It **must** be `gradientUnits="userSpaceOnUse"` — an objectBoundingBox gradient stretches to the path's own bounds and mis-colours any selection that doesn't reach the axis max.
+- **FTP** is a persisted setting (default 250) driving the zones and the threshold line. Without it the chart falls back to a flat accent fill.
+
 ### Electron Architecture
 - **electron-vite** for build tooling with Vite for both main and renderer
 - `nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`
@@ -42,6 +51,8 @@ FitCast is an Electron desktop app (React renderer + Node main process) that par
 4. **Drift-corrected scheduler** implemented but untested over long durations (90+ min)
 5. **electron-store** may need `electron-builder` `extraResources` config for production builds
 6. **Windows-only**: Tested on Linux CI only. Windows-specific paths (Zadig driver, WinUSB) documented but not exercised.
+7. **`npm run lint` does not work** — the script exists but there is no ESLint config file in the repo. `npm run typecheck` works for JSX now, but still reports one pre-existing error in `fit-parser.ts:78` (`Buffer<ArrayBufferLike>` vs the `Buffer<ArrayBuffer>` that `fit-file-parser`'s types demand).
+8. **Renderer components are untested** — `vitest.config.ts` uses `environment: 'node'` with no jsdom and no `@testing-library/*`. This is why the timeline's chart math lives in `src/shared/timeline.ts` rather than beside the components.
 
 ## Environment / Setup
 
@@ -76,17 +87,24 @@ Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PA
 |------|------|
 | `src/shared/ride-data.ts` | Core data model: `RideData`, `RideSample`, `sampleAtElapsedSeconds()` |
 | `src/shared/fit-parser.ts` | `.fit` file parsing → `RideData` normalization |
-| `src/shared/__tests__/` | Unit tests for data model and parser |
+| `src/shared/timeline.ts` | Pure chart math: `decimateChannel()`, `channelExtent()`, `clampSelection()`, `niceCeiling()`, `powerZoneStops()` |
+| `src/shared/__tests__/` | Unit tests for data model, parser, and timeline math |
 | `src/main/index.ts` | Electron main process, IPC handlers, window creation |
 | `src/main/ant-broadcaster.ts` | ANT+ broadcast logic (simulated mode) with proper accumulators |
 | `src/main/ffmpeg-check.ts` | Runtime ffmpeg detection |
 | `src/main/settings.ts` | Persistent settings via electron-store |
 | `src/preload/index.ts` | Secure `contextBridge` API surface |
-| `src/renderer/src/App.tsx` | Root React component |
+| `src/renderer/src/App.tsx` | Root React component — owns `rideData`, the timeline `selection`, and the ANT+ status poll |
+| `src/renderer/src/styles/timeline.css` | Timeline styling (imported by `RideTimeline.tsx`) |
 | `src/renderer/src/components/FileDropZone.tsx` | Drag-and-drop .fit file input |
 | `src/renderer/src/components/RideSummaryPanel.tsx` | Parsed ride data preview |
-| `src/renderer/src/components/RenderPanel.tsx` | Render configuration & trigger |
-| `src/renderer/src/components/AntPanel.tsx` | ANT+ broadcast & playback controls |
+| `src/renderer/src/components/timeline/RideTimeline.tsx` | Timeline card: FTP input, range readout, composes both charts |
+| `src/renderer/src/components/timeline/OverviewTrack.tsx` | Full-ride power minimap + the two-handle brush (all pointer/keyboard interaction) |
+| `src/renderer/src/components/timeline/DetailChart.tsx` | Power (zone-filled, left axis) + heart rate (right axis) for the selected range |
+| `src/renderer/src/components/timeline/paths.ts` | SVG path builders that break at recording gaps |
+| `src/renderer/src/components/timeline/useElementWidth.ts` | `ResizeObserver` width hook |
+| `src/renderer/src/components/RenderPanel.tsx` | Render configuration & trigger (range comes from the timeline) |
+| `src/renderer/src/components/AntPanel.tsx` | ANT+ broadcast & playback controls (range comes from the timeline; status is a prop) |
 | `src/renderer/src/components/StatusBar.tsx` | Status bar with colored messages |
 | `electron.vite.config.ts` | electron-vite configuration |
 | `example-data/` | Real .fit fixture file for testing |
@@ -97,6 +115,7 @@ Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PA
 2. **Real ANT+ broadcasting**: Install `incyclist-ant-plus`, wire up real USB stick connection using the existing accumulator logic. Test against EBC.
 3. **Overlay visual design**: Build the actual React overlay composition (power gauge, HR zone bar, cadence, etc.) that gets rendered frame-by-frame.
 4. **OBS websocket integration**: `obs-websocket-js` for auto-start/stop recording sync.
-5. **Settings persistence**: Wire UI controls for device IDs, output dir, codec defaults to electron-store.
+5. **Settings persistence**: Wire UI controls for device IDs, output dir, codec defaults to electron-store (FTP is already wired).
 6. **Error state polish**: Better UI error modals for dongle-not-found, driver-not-claimed, etc.
 7. **Playback speed multiplier**: Nice-to-have for faster testing.
+8. **Timeline extras**: scroll-to-zoom on the detail chart, extra channels (cadence/elevation), and snapping the brush to lap markers.

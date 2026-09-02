@@ -77,6 +77,8 @@ export class AntBroadcaster {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private playbackStartTime: number | null = null;
   private playbackOffset = 0;
+  /** Elapsed second at which to stop playback, or null to run to the end of the ride. */
+  private playbackEndOffset: number | null = null;
   private error: string | null = null;
   private simulated = true;
   private _hwTick = 0; // for debug log throttling in hardware path
@@ -146,8 +148,11 @@ export class AntBroadcaster {
 
   /**
    * Phase 2: Start replaying .fit data over the already-open broadcast.
+   *
+   * `endOffset` bounds playback to a section of the ride; omit it to play through
+   * to the last sample.
    */
-  startPlayback(startOffset: number): { status: BroadcastStatus } {
+  startPlayback(startOffset: number, endOffset?: number): { status: BroadcastStatus } {
     if (this.status !== 'broadcasting') {
       throw new Error('Must be broadcasting before starting playback');
     }
@@ -155,6 +160,8 @@ export class AntBroadcaster {
       throw new Error('No ride data loaded');
     }
     this.playbackOffset = startOffset;
+    this.playbackEndOffset =
+      typeof endOffset === 'number' && endOffset > startOffset ? endOffset : null;
     this.playbackStartTime = Date.now();
     this.status = 'playing';
 
@@ -168,7 +175,11 @@ export class AntBroadcaster {
         if (s) this.log.info('[ANT+] sample[%d] t=%ds power=%s cad=%s hr=%s', idx, Math.round(s.elapsedSeconds), s.power, s.cadence, s.heartRate);
       }
     }
-    this.log.info('[ANT+] Starting playback from offset %ds', startOffset);
+    this.log.info(
+      '[ANT+] Starting playback from offset %ds%s',
+      startOffset,
+      this.playbackEndOffset !== null ? ` until ${this.playbackEndOffset}s` : ''
+    );
     return { status: this.status };
   }
 
@@ -176,6 +187,7 @@ export class AntBroadcaster {
   stopPlayback(): { status: BroadcastStatus } {
     if (this.status !== 'playing') return { status: this.status };
     this.playbackStartTime = null;
+    this.playbackEndOffset = null;
     this.currentPower = 0;
     this.currentCadence = 0;
     this.currentHeartRate = 0;
@@ -305,7 +317,14 @@ export class AntBroadcaster {
       // Update values from ride data if playing
       if (this.status === 'playing' && this.rideData && this.playbackStartTime) {
         const elapsed = (Date.now() - this.playbackStartTime) / 1000 + this.playbackOffset;
-        const sample = sampleAtElapsedSeconds(this.rideData, elapsed);
+        // Compare elapsed time directly rather than waiting for a null sample:
+        // sampleAtElapsedSeconds clamps past the last sample and returns a copy,
+        // so it never signals the end of the ride on its own.
+        const limit = Math.min(
+          this.playbackEndOffset ?? Infinity,
+          this.rideData.totalElapsedSeconds
+        );
+        const sample = elapsed >= limit ? null : sampleAtElapsedSeconds(this.rideData, elapsed);
         if (sample) {
           this.currentPower = Math.round(sample.power ?? 0);
           this.currentCadence = Math.round(sample.cadence ?? 0);
@@ -317,7 +336,7 @@ export class AntBroadcaster {
               this.currentPower, this.currentCadence, this.currentHeartRate);
           }
         } else {
-          this.log.info('[ANT+] Playback reached end of ride data');
+          this.log.info('[ANT+] Playback reached %ds — end of selected range', Math.round(limit));
           this.stopPlayback();
         }
       }
