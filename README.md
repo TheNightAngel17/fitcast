@@ -6,11 +6,14 @@ Electron + React desktop app that parses cycling `.fit` files into a unified dat
 
 ```bash
 # Prerequisites: Node.js 22+, npm
+cd app
 npm install
 npm run dev
 ```
 
 ## Scripts
+
+Run from `app/`.
 
 | Command | Description |
 |---------|-------------|
