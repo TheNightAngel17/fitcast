@@ -14,7 +14,8 @@ import {
   clampSelection,
   niceCeiling,
   niceStep,
-  powerZoneStops,
+  zoneColorForValue,
+  POWER_ZONES,
   MIN_SELECTION_SECONDS,
 } from '../timeline';
 
@@ -234,35 +235,25 @@ describe('niceCeiling', () => {
   });
 });
 
-describe('powerZoneStops', () => {
-  it('emits hard stop pairs ascending from the baseline', () => {
-    const stops = powerZoneStops(250, 1000);
-    expect(stops).not.toBeNull();
+describe('zoneColorForValue', () => {
+  const FTP = 250;
 
-    const offsets = stops!.map((s) => s.offset);
-    expect(offsets[0]).toBe(0);
-    for (let i = 1; i < offsets.length; i++) {
-      expect(offsets[i]).toBeGreaterThanOrEqual(offsets[i - 1]);
-    }
-    expect(offsets[offsets.length - 1]).toBeLessThanOrEqual(1);
-
-    // Z1 tops out at 55% of FTP = 137.5W of a 1000W axis.
-    expect(stops![1].offset).toBeCloseTo(0.1375);
+  it('picks the zone whose upper bound the value falls at or under', () => {
+    expect(zoneColorForValue(100, FTP)).toBe(POWER_ZONES[0].color); // <= 55% * 250 = 137.5 -> Z1
+    expect(zoneColorForValue(140, FTP)).toBe(POWER_ZONES[1].color); // <= 75% * 250 = 187.5 -> Z2
+    expect(zoneColorForValue(250, FTP)).toBe(POWER_ZONES[3].color); // <= 105% * 250 = 262.5 -> Z4
   });
 
-  it('stops emitting once the axis is covered', () => {
-    // FTP 250 with a 100W axis: Z1 alone (137.5W) already overflows it, so a
-    // single clamped band covers the whole gradient.
-    const stops = powerZoneStops(250, 100)!;
-    expect(stops).toHaveLength(2);
-    expect(stops[1].offset).toBe(1);
+  it('is inclusive at a zone boundary — the boundary value lands in the lower zone', () => {
+    expect(zoneColorForValue(137.5, FTP)).toBe(POWER_ZONES[0].color);
   });
 
-  it('returns null for unusable input so callers can fall back', () => {
-    expect(powerZoneStops(0, 500)).toBeNull();
-    expect(powerZoneStops(-250, 500)).toBeNull();
-    expect(powerZoneStops(250, 0)).toBeNull();
-    expect(powerZoneStops(NaN, 500)).toBeNull();
+  it('returns the top zone colour for power far above FTP', () => {
+    expect(zoneColorForValue(10_000, FTP)).toBe(POWER_ZONES[POWER_ZONES.length - 1].color);
+  });
+
+  it('returns the bottom zone colour at zero power', () => {
+    expect(zoneColorForValue(0, FTP)).toBe(POWER_ZONES[0].color);
   });
 });
 

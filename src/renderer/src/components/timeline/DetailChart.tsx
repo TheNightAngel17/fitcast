@@ -7,9 +7,14 @@ import {
   channelExtent,
   niceCeiling,
   niceStep,
-  powerZoneStops,
+  zoneColorForValue,
 } from '../../../../shared/timeline';
-import { areaPath, linePath } from './paths';
+import { zoneGradientRuns, linePath } from './paths';
+
+/** Fill used when FTP isn't set, so the chart still reads without zone colours. */
+const FLAT_FILL_COLOR = 'var(--accent)';
+/** Width, in pixels, of the smoothed blend at a power-zone crossing. */
+const ZONE_TRANSITION_PX = 8;
 
 interface Props {
   rideData: RideData;
@@ -46,8 +51,8 @@ export function DetailChart({
   padLeft,
   padRight,
 }: Props): React.ReactElement {
-  // useId embeds colons, which break `url(#...)` references — strip them.
-  const gradientId = `tl-power-${useId().replace(/:/g, '')}`;
+  // Gradient ids embed colons from useId(), which break `url(#...)` references.
+  const gradientBaseId = `tl-power-${useId().replace(/:/g, '')}`;
   const [hoverT, setHoverT] = useState<number | null>(null);
 
   const { samples, channels } = rideData;
@@ -93,9 +98,15 @@ export function DetailChart({
     [plotBottom, plotHeight, hrMax]
   );
 
-  const powerArea = useMemo(
-    () => areaPath(powerBuckets, (b) => b.max, xOf, yPower, plotBottom),
-    [powerBuckets, xOf, yPower, plotBottom]
+  // Each point is coloured by its own value, not by a shared vertical gradient —
+  // a column that peaks in Zone 4 is solid Zone 4 for its whole height.
+  const colorOf = useCallback(
+    (v: number) => (ftp > 0 ? zoneColorForValue(v, ftp) : FLAT_FILL_COLOR),
+    [ftp]
+  );
+  const zoneGradients = useMemo(
+    () => zoneGradientRuns(powerBuckets, (b) => b.max, xOf, yPower, plotBottom, colorOf, ZONE_TRANSITION_PX),
+    [powerBuckets, xOf, yPower, plotBottom, colorOf]
   );
   const powerLine = useMemo(
     () => linePath(powerBuckets, (b) => b.max, xOf, yPower),
@@ -105,12 +116,6 @@ export function DetailChart({
     () => linePath(hrBuckets, (b) => b.avg, xOf, yHr),
     [hrBuckets, xOf, yHr]
   );
-
-  // Zone colours depend only on the Y value, so one vertical gradient clipped to
-  // the area path reproduces the banding at no per-column cost. userSpaceOnUse is
-  // essential: an objectBoundingBox gradient would stretch to the path's own
-  // bounds and mis-colour any selection that never reaches the axis maximum.
-  const zoneStops = useMemo(() => powerZoneStops(ftp, powerMax), [ftp, powerMax]);
 
   const powerTicks = useMemo(() => ticksOver(0, powerMax, 5), [powerMax]);
   const hrTicks = useMemo(() => (hrMax ? ticksOver(0, hrMax, 5) : []), [hrMax]);
@@ -140,25 +145,21 @@ export function DetailChart({
     <div className="tl-detail-wrap">
       <svg className="tl-detail" width={width} height={height}>
         <defs>
-          <linearGradient
-            id={gradientId}
-            gradientUnits="userSpaceOnUse"
-            x1={0}
-            y1={plotBottom}
-            x2={0}
-            y2={PAD_TOP}
-          >
-            {zoneStops ? (
-              zoneStops.map((s, i) => (
-                <stop key={i} offset={s.offset} stopColor={s.color} />
-              ))
-            ) : (
-              <>
-                <stop offset="0" stopColor="var(--accent)" stopOpacity="0.25" />
-                <stop offset="1" stopColor="var(--accent)" stopOpacity="0.85" />
-              </>
-            )}
-          </linearGradient>
+          {zoneGradients.map((g, i) => (
+            <linearGradient
+              key={i}
+              id={`${gradientBaseId}-${i}`}
+              gradientUnits="userSpaceOnUse"
+              x1={g.x1}
+              x2={g.x2}
+              y1={0}
+              y2={0}
+            >
+              {g.stops.map((s, si) => (
+                <stop key={si} offset={s.offset} stopColor={s.color} />
+              ))}
+            </linearGradient>
+          ))}
         </defs>
 
         {/* Power gridlines + left axis */}
@@ -185,7 +186,9 @@ export function DetailChart({
           </text>
         ))}
 
-        <path d={powerArea} fill={`url(#${gradientId})`} fillOpacity={zoneStops ? 0.72 : 1} />
+        {zoneGradients.map((g, i) => (
+          <path key={i} d={g.d} fill={`url(#${gradientBaseId}-${i})`} fillOpacity={0.9} />
+        ))}
         <path d={powerLine} className="tl-power-line" />
 
         {showThreshold && (

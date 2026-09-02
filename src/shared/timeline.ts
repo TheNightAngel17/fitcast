@@ -39,7 +39,8 @@ export const DEFAULT_GAP_THRESHOLD_SECONDS = 5;
 
 /**
  * Coggan power zones, as an upper bound expressed in fractions of FTP.
- * Used to build the vertical gradient under the power area.
+ * Drives the solid fill colour of each point on the power area — see
+ * zoneColorForValue().
  */
 export const POWER_ZONES: { name: string; fracOfFtp: number; color: string }[] = [
   { name: 'Active Recovery', fracOfFtp: 0.55, color: '#5b8def' },
@@ -208,30 +209,16 @@ export function niceCeiling(v: number, targetTicks: number = TARGET_TICKS): numb
 }
 
 /**
- * Gradient stops for the power area fill, as offsets in [0, 1] measured from
- * the baseline (0W) up to `yMax`. Emitted as hard stop pairs so the zones read
- * as distinct bands rather than a smooth blur.
+ * The zone colour for a single power value. Each point on the power chart is
+ * coloured solidly by its own value — a column that peaks in Zone 4 is Zone 4
+ * coloured for its entire height, not shaded through the zones beneath it.
  *
- * Returns null when FTP is unusable, so callers can fall back to a flat fill.
+ * Callers must only invoke this with a usable FTP (> 0); the flat, zone-less
+ * fallback for missing FTP belongs in the caller, not here.
  */
-export function powerZoneStops(
-  ftp: number,
-  yMax: number
-): { offset: number; color: string }[] | null {
-  if (!Number.isFinite(ftp) || ftp <= 0 || !Number.isFinite(yMax) || yMax <= 0) {
-    return null;
-  }
-
-  const stops: { offset: number; color: string }[] = [];
-  let prevOffset = 0;
-
+export function zoneColorForValue(value: number, ftp: number): string {
   for (const zone of POWER_ZONES) {
-    if (prevOffset >= 1) break;
-    stops.push({ offset: prevOffset, color: zone.color });
-    const offset = Math.min((zone.fracOfFtp * ftp) / yMax, 1);
-    stops.push({ offset, color: zone.color });
-    prevOffset = offset;
+    if (value <= zone.fracOfFtp * ftp) return zone.color;
   }
-
-  return stops;
+  return POWER_ZONES[POWER_ZONES.length - 1].color;
 }
