@@ -18,11 +18,14 @@ export interface FitCastAPI {
   // Render
   checkFfmpeg: () => Promise<{ available: boolean; version?: string; error?: string }>;
   startRender: (options: {
+    /** File path for single-file formats; directory path for frame sequences. */
     outputPath: string;
-    codec: string;
+    /** A `RenderFormatId` from `shared/render-formats`. */
+    format: string;
     width: number;
     height: number;
-    fps: number;
+    /** Exact rational — fractional NTSC rates must not be rounded to a decimal. */
+    frameRate: { num: number; den: number };
     startOffset: number;
     duration: number;
   }) => Promise<{ status: string; message?: string }>;

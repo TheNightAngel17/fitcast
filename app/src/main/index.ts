@@ -10,6 +10,7 @@ import { existsSync } from 'fs';
 import log from 'electron-log/main';
 import { parseFitFile } from '../shared/fit-parser';
 import type { RideData } from '../shared/ride-data';
+import { renderFormatById, validateDimensions, ffmpegEncodeArgs } from '../shared/render-formats';
 import { AntBroadcaster } from './ant-broadcaster';
 import { checkFfmpeg } from './ffmpeg-check';
 import { SettingsStore } from './settings';
@@ -140,10 +141,10 @@ function registerIpcHandlers(): void {
       _event,
       options: {
         outputPath: string;
-        codec: string;
+        format: string;
         width: number;
         height: number;
-        fps: number;
+        frameRate: { num: number; den: number };
         startOffset: number;
         duration: number;
       }
@@ -153,7 +154,26 @@ function registerIpcHandlers(): void {
       if (typeof options.outputPath !== 'string' || options.outputPath.length === 0) {
         throw new Error('Invalid output path');
       }
+      // Don't trust the renderer: re-check the format and geometry main-side.
+      const format = renderFormatById(options.format);
+      if (!format) {
+        throw new Error(`Unknown render format: ${options.format}`);
+      }
+      const dimensionError = validateDimensions(options.width, options.height);
+      if (dimensionError) {
+        throw new Error(dimensionError);
+      }
       log.info('Render requested with options:', options);
+      if (format.requiresFfmpeg) {
+        const args = ffmpegEncodeArgs({
+          format,
+          frameRate: options.frameRate,
+          outputPath: options.outputPath,
+        });
+        log.info('Encoder invocation:', ['ffmpeg', ...args].join(' '));
+      } else {
+        log.info('Encoder invocation:', `${format.label} — frames written directly, no ffmpeg`);
+      }
       // TODO: Implement actual render pipeline with headless Chromium + ffmpeg
       // For now, return a stub indicating the pipeline location
       return { status: 'not-implemented', message: 'Render pipeline is stubbed — see CLAUDE.md' };
