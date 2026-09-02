@@ -24,6 +24,10 @@ Run from `app/`.
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | TypeScript type checking |
 
+## Download
+
+Prebuilt Windows installers are attached to [GitHub Releases](https://github.com/TheNightAngel17/fitcast/releases). Builds are **unsigned** (code signing is out of scope), so Windows SmartScreen will warn when you run the installer — click "More info" > "Run anyway" to proceed.
+
 ## Usage
 
 1. Launch the app
