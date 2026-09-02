@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Agent skill configuration for contributors using AI coding agents: issue tracker and domain-doc conventions documented under `docs/agents/`, referenced from `CLAUDE.md`.
+
 ### Changed
 
 - Restructured the repository: all app source and tooling moved under `app/`, with a new `docs/` for non-root documentation. Only `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `app/`, and `docs/` remain at the repo root. Run `npm` commands from inside `app/` going forward.
