@@ -106,6 +106,28 @@
   font-size: 13px;
 }
 
+/* Clarifying note under a single control — what the current choice implies. */
+.form-group small {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* Blocking validation message; the matching action button is disabled alongside it. */
+.form-error {
+  font-size: 12px;
+  color: var(--error);
+  margin-bottom: 12px;
+}
+
+/* Standing guidance for a group of controls, not tied to the current value. */
+.form-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
 .button-group {
   display: flex;
   gap: 8px;
