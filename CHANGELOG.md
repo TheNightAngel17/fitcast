@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions CI workflow that runs lint, typecheck, test, and build on every pull request and every push to `main`.
+
 ### Fixed
 
 - `npm run typecheck` no longer fails on a `fit-file-parser` `Buffer` type mismatch, so CI can gate on typecheck.
