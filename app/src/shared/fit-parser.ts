@@ -74,14 +74,23 @@ export async function parseFitFile(buffer: Buffer): Promise<RideData> {
     mode: 'list',
   });
 
+  // fit-file-parser's types require a Buffer/ArrayBuffer backed strictly by
+  // ArrayBuffer, but Node's Buffer type is backed by ArrayBufferLike (which
+  // also permits SharedArrayBuffer). Copy into a fresh ArrayBuffer to satisfy
+  // the stricter type without changing behavior for normal (non-shared) input.
+  const arrayBuffer = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength
+  ) as ArrayBuffer;
+
   return new Promise((resolve, reject) => {
-    parser.parse(buffer, (error: Error | null, data: FitData) => {
+    parser.parse(arrayBuffer, (error, data) => {
       if (error) {
-        reject(new Error(`Failed to parse .fit file: ${error.message}`));
+        reject(new Error(`Failed to parse .fit file: ${error}`));
         return;
       }
       try {
-        resolve(buildRideData(data));
+        resolve(buildRideData((data ?? {}) as unknown as FitData));
       } catch (e) {
         reject(e);
       }
