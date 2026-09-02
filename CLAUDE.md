@@ -39,3 +39,13 @@ Concretely, when v0.2.0 ships the footer becomes:
 [v0.2.0]: https://github.com/TheNightAngel17/fitcast/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/TheNightAngel17/fitcast/tree/v0.1.0
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as GitHub Issues in `TheNightAngel17/fitcast`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context layout: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
