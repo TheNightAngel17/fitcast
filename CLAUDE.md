@@ -9,8 +9,8 @@ Both pipelines operate on a **time range selected on the timeline**, not on the 
 ## Repository Layout
 
 - `app/` — the Electron app itself: `package.json`, all source, config, and tooling. **Run every `npm` command from inside `app/`**, not the repo root. See [`app/CLAUDE.md`](app/CLAUDE.md) for architecture decisions, environment setup, and the file map.
-- `docs/` — documentation, findings, and plans that aren't `CHANGELOG.md`, `CLAUDE.md`, or `README.md`.
-- Repo root — only `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `README.md`, `app/`, and `docs/`.
+- `docs/` — documentation, findings, and plans that aren't `CHANGELOG.md`, `CLAUDE.md`, `CONTRIBUTING.md`, or `README.md`.
+- Repo root — only `CHANGELOG.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `LICENSE`, `README.md`, `app/`, and `docs/`. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the human-facing dev workflow, branching/PR process, and CI/CD — this file is the AI-agent-facing convention reference instead.
 
 ## CHANGELOG.md
 
