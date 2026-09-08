@@ -57,7 +57,7 @@ The format catalogue and the concrete ffmpeg invocation live in `src/shared/rend
 3. **OBS websocket integration** not started (stretch goal)
 4. **Drift-corrected scheduler** implemented but untested over long durations (90+ min)
 5. **electron-store** may need `electron-builder` `extraResources` config for production builds
-6. **Windows-only**: Tested on Linux CI only. Windows-specific paths (Zadig driver, WinUSB) documented but not exercised.
+6. **ANT+ hardware**: Windows CI validates dependency installation and the production build, but real USB hardware and its Zadig driver setup remain unverified.
 7. **`npm run lint` does not work** — the script exists but there is no ESLint config file in the repo. `npm run typecheck` works for JSX now, but still reports one pre-existing error in `fit-parser.ts:78` (`Buffer<ArrayBufferLike>` vs the `Buffer<ArrayBuffer>` that `fit-file-parser`'s types demand).
 8. **Renderer components are untested** — `vitest.config.ts` uses `environment: 'node'` with no jsdom and no `@testing-library/*`. This is why the timeline's chart math lives in `src/shared/timeline.ts` rather than beside the components.
 

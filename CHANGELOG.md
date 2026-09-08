@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Release workflow: pushing a `vX.Y.Z` tag builds the Windows NSIS installer and publishes it to a GitHub Release, with release notes taken from the matching `CHANGELOG.md` version section. Installers are unsigned, so Windows SmartScreen will warn on first run.
-- GitHub Actions CI workflow that runs lint, typecheck, test, and build on every pull request and every push to `main`.
+- GitHub Actions CI workflow that runs lint, typecheck, test, and build for every pull request and every push to `main`, on a self-hosted Windows runner.
 
 ### Changed
 
