@@ -11,9 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - GitHub Actions CI workflow that runs lint, typecheck, test, and build on every pull request and every push to `main`.
 
+### Changed
+
+- **Render output formats** — the overlay now renders as ProRes 4444 (`.mov`) or a PNG sequence, both of which Premiere imports with transparency intact. Frame rate moved from a free-text box to a preset list carrying exact broadcast rates (23.976, 29.97, 59.94 and friends), defaulting to 29.97, and width/height are now validated before a render starts.
+
 ### Fixed
 
 - `npm run typecheck` no longer fails on a `fit-file-parser` `Buffer` type mismatch, so CI can gate on typecheck.
+
+### Removed
+
+- **VP9 + alpha (`.webm`) output.** Premiere cannot import WebM natively, and the common third-party plugin writes alpha but cannot read it back, so the option could only ever produce a file that lost its transparency on import. Use ProRes 4444 instead.
 
 ## [v0.2.0] - 2026-09-01
 
