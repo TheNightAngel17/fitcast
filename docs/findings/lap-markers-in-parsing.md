@@ -23,7 +23,7 @@ Node v24.0.2 (repo targets `>=22.0.0`, `app/package.json:10`), not from document
 **2.3.3**, which is what is locked and installed:
 
 - `app/package-lock.json:4814-4817` — `"node_modules/fit-file-parser": { "version": "2.3.3", ... }`
-- `node_modules/fit-file-parser/package.json:4` — `"version": "2.3.3"`
+- `app/node_modules/fit-file-parser/package.json:4` — `"version": "2.3.3"`
 
 Both versions were checked. `npm pack fit-file-parser@2.1.0` and diffing the relevant code paths
 shows 2.1.0 and 2.3.3 are **identical** in every respect this question turns on — same options
@@ -32,7 +32,7 @@ same output for our fixture. The findings hold for either.
 
 ### There is no lap-related option, because laps are unconditional
 
-The complete options surface (`node_modules/fit-file-parser/dist/fit-parser.d.ts:3-11`):
+The complete options surface (`app/node_modules/fit-file-parser/dist/fit-parser.d.ts:3-11`):
 
 ```ts
 export interface FitParserOptions {
