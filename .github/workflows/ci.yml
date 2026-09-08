@@ -13,10 +13,41 @@ permissions:
   contents: read
 
 jobs:
+  ci-build-test-check-dir:
+    runs-on: ubuntu-latest
+    outputs:
+      app_changed: ${{ steps.changes.outputs.app_changed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check for app/ changes
+        id: changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="${{ github.event.pull_request.base.sha }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base" 2>/dev/null; then
+            echo "No usable base commit to diff against -- running the full pipeline" >&2
+            echo "app_changed=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$base" "${{ github.sha }}" -- app/ .github/workflows/ci.yml; then
+            echo "app_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # Disabled for now — focusing CI on Windows, the actual shipping target, rather than
   # also carrying Linux toolchain gaps (see #8's resolution comment for what those were).
-  # Re-enable by uncommenting if Linux support comes back into scope.
+  # Re-enable by uncommenting if Linux support comes back into scope. When you do, also add
+  # it to ci-build-test-gate's needs: list and result check below.
   # linux-ci-build-test:
+  #   needs: ci-build-test-check-dir
+  #   if: needs.ci-build-test-check-dir.outputs.app_changed != 'false'
   #   runs-on: ubuntu-latest
   #   defaults:
   #     run:
@@ -48,6 +79,8 @@ jobs:
   #       run: npm run build
 
   windows-ci-build-test:
+    needs: ci-build-test-check-dir
+    if: needs.ci-build-test-check-dir.outputs.app_changed != 'false'
     runs-on: [self-hosted, Windows, X64]
     defaults:
       run:
@@ -75,3 +108,27 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  ci-build-test-gate:
+    needs: [ci-build-test-check-dir, windows-ci-build-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check result
+        shell: bash
+        run: |
+          check_result="${{ needs.ci-build-test-check-dir.result }}"
+          build_result="${{ needs.windows-ci-build-test.result }}"
+          echo "ci-build-test-check-dir: $check_result"
+          echo "windows-ci-build-test: $build_result"
+          if [ "$check_result" != "success" ]; then
+            echo "Gate failed: change-detection job did not succeed"
+            exit 1
+          fi
+          if [ "$build_result" = "success" ] || [ "$build_result" = "skipped" ]; then
+            echo "Gate passed"
+            exit 0
+          else
+            echo "Gate failed: windows-ci-build-test result was $build_result"
+            exit 1
+          fi
