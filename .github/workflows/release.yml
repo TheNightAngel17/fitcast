@@ -15,6 +15,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Extract changelog section
+        id: changelog
+        shell: bash
+        run: |
+          awk -v ver="[$GITHUB_REF_NAME]" '
+            /^## / {
+              if (found) exit
+              if (index($0, ver) > 0) { found=1; next }
+              next
+            }
+            /^\[/ { if (found) exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG.md section found for $GITHUB_REF_NAME -- refusing to build or release" >&2
+            exit 1
+          fi
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "**Unsigned build**: this installer is not code-signed, so Windows SmartScreen will warn when you run it. Click \"More info\" > \"Run anyway\" to proceed."
+          } >> release-notes.md
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -32,30 +56,6 @@ jobs:
       - name: Build and package
         working-directory: app
         run: npm run package
-
-      - name: Extract changelog section
-        id: changelog
-        shell: bash
-        run: |
-          awk -v ver="[$GITHUB_REF_NAME]" '
-            /^## / {
-              if (found) exit
-              if (index($0, ver) > 0) { found=1; next }
-              next
-            }
-            /^\[/ { if (found) exit }
-            found { print }
-          ' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then
-            echo "No CHANGELOG.md section found for $GITHUB_REF_NAME" >&2
-            exit 1
-          fi
-          {
-            echo ""
-            echo "---"
-            echo ""
-            echo "**Unsigned build**: this installer is not code-signed, so Windows SmartScreen will warn when you run it. Click \"More info\" > \"Run anyway\" to proceed."
-          } >> release-notes.md
 
       - name: Create GitHub Release
         shell: bash
