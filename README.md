@@ -34,14 +34,14 @@ Prebuilt Windows installers are attached to [GitHub Releases](https://github.com
 2. Drag-and-drop a `.fit` file (or click to browse)
 3. Review the ride summary (power, HR, cadence, etc.)
 4. Choose an action:
-   - **Render**: Generate an overlay video with alpha channel (ProRes 4444 / VP9)
+   - **Render**: Generate an overlay video with alpha channel (ProRes 4444 or a PNG sequence)
    - **Start Broadcasting**: Begin idle ANT+ broadcast for device pairing
    - **Playback**: Replay ride data over ANT+ in real-time
 
 ## Requirements
 
 - **ffmpeg** on PATH (for render mode) — [download](https://ffmpeg.org/download.html)
-- **ANT+ USB dongle** with WinUSB driver (for ANT+ mode) — see [CLAUDE.md](CLAUDE.md) for driver setup
+- **ANT+ USB dongle** with the libusbK driver (for ANT+ mode) — see [app/CLAUDE.md](app/CLAUDE.md) for driver setup
 
 ## License
 

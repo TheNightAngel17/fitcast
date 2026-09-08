@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Contributor Notes
+
+#### Added
+
+- `CONTRIBUTING.md`: the human-facing dev workflow, branching/PR process, and CI/CD guide, complementing `CLAUDE.md`'s AI-agent-facing conventions.
+
 ## [v0.3.0] - 2026-09-08
 
 ### Release Notes
