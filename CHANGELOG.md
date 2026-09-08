@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-09-08
+
 ### Release Notes
 
 #### Changed
@@ -55,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - ANT+ playback no longer runs past the end of a ride or selected range indefinitely — end-of-playback detection now compares elapsed time directly instead of a sample lookup that never returned `null` once played past the last sample.
 
-[Unreleased]: https://github.com/TheNightAngel17/fitcast/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/TheNightAngel17/fitcast/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/TheNightAngel17/fitcast/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/TheNightAngel17/fitcast/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/TheNightAngel17/fitcast/tree/v0.1.0

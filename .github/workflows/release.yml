@@ -28,7 +28,15 @@ jobs:
             state==1 && /^### Release Notes/ { state=2; next }
             state==2 && /^### / { exit }
             state==2 && /^\[/ { exit }
-            state==2 { print }
+            state==2 {
+              if (match($0, /^#+ /)) {
+                n = RLENGTH - 1
+                if (n >= 2) {
+                  $0 = substr("##########", 1, n - 2) " " substr($0, RLENGTH + 1)
+                }
+              }
+              print
+            }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "No ### Release Notes found under $GITHUB_REF_NAME in CHANGELOG.md -- refusing to build or release" >&2

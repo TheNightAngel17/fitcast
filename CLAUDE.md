@@ -17,7 +17,7 @@ Both pipelines operate on a **time range selected on the timeline**, not on the 
 ### Format
 Follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Version headers are `v`-prefixed (`## [v0.1.0]`) to match the git tag name exactly — the link footer below depends on this. Each version splits into two audience subsections:
 
-- `### Release Notes` — what a user of the packaged app would notice. **Always present**, even with nothing to say (see below) — the release workflow extracts this subsection verbatim into the GitHub Release, so it can't be omitted the way an empty category header can.
+- `### Release Notes` — what a user of the packaged app would notice. **Always present**, even with nothing to say (see below) — the release workflow extracts this subsection into the GitHub Release (bumping its `####` category headers to `##`, since the release page has no wrapping version/subsection levels to nest under), so it can't be omitted the way an empty category header can.
 - `### Contributor Notes` — CI/CD, build tooling, dev-workflow changes a contributor cares about but a user never sees. Omit entirely when there's nothing to say, same as any other empty section.
 
 Within each, entries group under `#### Added` / `#### Changed` / `#### Fixed` / `#### Removed` / `#### Deprecated` / `#### Security`, newest version first, dates as `YYYY-MM-DD`. Omit empty category headers rather than leaving them blank.
