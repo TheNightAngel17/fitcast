@@ -10,22 +10,15 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows, X64]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Read Node version
-        id: node-version
-        shell: bash
-        run: echo "version=$(cat app/.nvmrc)" >> "$GITHUB_OUTPUT"
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: ${{ steps.node-version.outputs.version }}
-          cache: npm
-          cache-dependency-path: app/package-lock.json
+          node-version-file: app/.nvmrc
 
       - name: Install dependencies
         working-directory: app
