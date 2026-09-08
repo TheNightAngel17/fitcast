@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- GitHub Actions CI workflow that runs lint, typecheck, test, and build on every pull request and every push to `main`.
+- GitHub Actions CI workflow that runs lint, typecheck, test, and build on Linux and Windows for every pull request and every push to `main`.
 
 ### Changed
 
