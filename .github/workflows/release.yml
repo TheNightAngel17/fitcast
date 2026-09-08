@@ -20,16 +20,18 @@ jobs:
         shell: bash
         run: |
           awk -v ver="[$GITHUB_REF_NAME]" '
-            /^## / {
-              if (found) exit
-              if (index($0, ver) > 0) { found=1; next }
+            state==0 && /^## / {
+              if (index($0, ver) > 0) { state=1 }
               next
             }
-            /^\[/ { if (found) exit }
-            found { print }
+            state>=1 && /^## / { exit }
+            state==1 && /^### Release Notes/ { state=2; next }
+            state==2 && /^### / { exit }
+            state==2 && /^\[/ { exit }
+            state==2 { print }
           ' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
-            echo "No CHANGELOG.md section found for $GITHUB_REF_NAME -- refusing to build or release" >&2
+            echo "No ### Release Notes found under $GITHUB_REF_NAME in CHANGELOG.md -- refusing to build or release" >&2
             exit 1
           fi
           {
