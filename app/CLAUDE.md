@@ -20,7 +20,18 @@ Technical reference for the Electron app itself — architecture decisions, envi
 ### Render Pipeline: Stubbed
 - **Current state**: The render button is wired but returns a "not implemented" stub. The intended approach is headless Chromium (via Puppeteer) frame capture + ffmpeg encoding, NOT Remotion.
 - **Why not Remotion**: Remotion bundles its own Chromium which conflicts with Electron's, complicating distribution significantly. A Puppeteer-based pipeline is simpler for Electron packaging.
-- **ffmpeg**: Detected at runtime via `spawn('ffmpeg', ['-version'])`. Clear error surfaced if missing. Not bundled — user must install.
+- **ffmpeg**: Detected at runtime via `spawn('ffmpeg', ['-version'])`. Clear error surfaced if missing. Not bundled — user must install. Only gate the render on it for formats that actually encode — a PNG sequence doesn't.
+
+### Output Format: ProRes 4444, or a PNG sequence
+The format catalogue and the concrete ffmpeg invocation live in `src/shared/render-formats.ts`, shared by the renderer UI and the main process so both agree on what's on offer.
+
+- **ProRes 4444 (`.mov`)** is the default: Premiere imports it natively on Windows and detects the alpha channel automatically. Encoded via `prores_ks -profile:v 4444 -pix_fmt yuva444p12le -alpha_bits 16 -vendor apl0`, reading PNG frames piped in on stdin. 12-bit because that is what ProRes 4444 stores natively; asking for 10-bit just makes ffmpeg promote it.
+- **PNG sequence** is the escape hatch and the diagnostic — no encoder in the path, so if a render ever looks wrong, a sequence tells you immediately whether the fault is in the capture or the encode.
+- **VP9 + alpha is deliberately absent.** Premiere cannot import WebM natively, and the usual third-party plugin writes alpha but cannot read it back, so a `.webm` render imports without its transparency. It was offered in the UI until the format decision was made; `resolveRenderFormat()` maps a stored `'vp9'` back to the default.
+- **QuickTime Animation is also absent**: Premiere only accepts it without delta frames, and forcing all-intra to comply makes it roughly twice the size of ProRes. Apple has deprecated the codec besides.
+- **Alpha stays straight (unpremultiplied)** end to end — that is what Chromium captures produce and what Premiere expects. Premultiplying anywhere in the chain haloes antialiased text, which is most of what the overlay is made of. Verified: RGBA frames spanning alpha 0–255 decode back out of the `.mov` at 0–255, with no explicit range flags needed.
+- **Frame rate is a preset list of exact rationals**, not a number input, and it reaches ffmpeg as `30000/1001` rather than `29.97`. 30 and 29.97 drift 3.6 seconds apart over an hour, and cameras that display "30" overwhelmingly record the fractional rate — a free-text box invites exactly that mistake.
+- **Sizing**: measured at 1080p on synthetic overlay content, ProRes 4444 runs ~6.5 GB/hour and a PNG sequence ~1.2 GB/hour. Cost scales with pixel count, so a 640×360 corner overlay is roughly a ninth of that. Quality tuning is not a useful size lever — a ProRes qscale sweep moved the total under 10%, because the alpha plane dominates.
 
 ### Timeline / Range Selection: hand-rolled SVG
 - **Why not a chart library**: no charting dep is installed. Recharts' `Brush` can't do window-panning or Xert-style handles and needs heavy dark-theme restyling; uPlot is imperative DOM and awkward under React 18 StrictMode. Two hand-rolled SVGs cost ~450 lines and give full control.
@@ -84,6 +95,7 @@ Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PA
 | `src/shared/ride-data.ts` | Core data model: `RideData`, `RideSample`, `sampleAtElapsedSeconds()` |
 | `src/shared/fit-parser.ts` | `.fit` file parsing → `RideData` normalization |
 | `src/shared/timeline.ts` | Pure chart math: `decimateChannel()`, `channelExtent()`, `clampSelection()`, `niceCeiling()`, `zoneColorForValue()` |
+| `src/shared/render-formats.ts` | Output format catalogue, frame-rate presets, dimension validation, and the ffmpeg argv |
 | `src/shared/__tests__/` | Unit tests for data model, parser, and timeline math |
 | `src/main/index.ts` | Electron main process, IPC handlers, window creation |
 | `src/main/ant-broadcaster.ts` | ANT+ broadcast logic (simulated mode) with proper accumulators |
@@ -107,7 +119,7 @@ Not bundled. Install from https://ffmpeg.org/download.html and ensure it's on PA
 
 ## Suggested Next Steps (prioritized)
 
-1. **Implement render pipeline**: Puppeteer headless frame capture → ffmpeg ProRes 4444 / VP9+alpha encoding. Wire progress reporting back to UI.
+1. **Implement render pipeline**: Puppeteer headless frame capture → the encoder settled in `src/shared/render-formats.ts`. Wire progress reporting back to UI.
 2. **Real ANT+ broadcasting**: Install `incyclist-ant-plus`, wire up real USB stick connection using the existing accumulator logic. Test against EBC.
 3. **Overlay visual design**: Build the actual React overlay composition (power gauge, HR zone bar, cadence, etc.) that gets rendered frame-by-frame.
 4. **OBS websocket integration**: `obs-websocket-js` for auto-start/stop recording sync.
