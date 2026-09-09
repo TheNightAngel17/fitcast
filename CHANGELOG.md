@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 
 - `CONTRIBUTING.md`: the human-facing dev workflow, branching/PR process, and CI/CD guide, complementing `CLAUDE.md`'s AI-agent-facing conventions.
+- Confirmed the render pipeline's frame capture will use Electron's own offscreen Chromium instead of Puppeteer, avoiding a second bundled browser. Verified empirically: alpha is recoverable (the raw capture is premultiplied and needs an explicit unpremultiply step), scaling re-rasterizes rather than stretching, frame-by-frame capture can be made deterministic, and throughput is ~33 ms/frame at 1920x1080. See `docs/findings/offscreen-capture-spike.md`.
 
 ## [v0.3.0] - 2026-09-08
 
